@@ -20,6 +20,7 @@ library(clustMixType)
 library(factoextra)
 library(NbClust)
 library(umap)
+library(mclust)  # Added for adjustedRandIndex function
 
 # Visualization enhancements
 library(dendextend)
@@ -209,14 +210,15 @@ write.csv(pdm_cluster_table, "BOAT2_PDM_Cluster_Table.csv")
 ```
 
 ## K-Prototypes Clustering Analysis
-This section implements K-prototypes clustering to handle mixed data types (numerical and categorical variables) and compares different clustering solutions.
+本节实现了K-prototypes聚类，适用于处理混合数据类型（数值型和分类型变量），并比较不同的聚类解决方案。
 
+### 数据准备
 ```{r}
-# Remove the outlier with 3700 employees
+# 移除异常值（3700名员工的记录）
 boat_data_filtered <- boat_data %>%
   filter(Org_Structure_Employees != 3700)
 
-# Define numerical and ordinal variables - using original variables instead of combined ones
+# 定义数值变量和有序变量 - 使用原始独立变量
 numerical_vars <- c(
   "Org_Structure_Employees",
   "Org_Structure_Locations",
@@ -225,7 +227,7 @@ numerical_vars <- c(
 )
 
 ordinal_vars <- c(
-  # Use original separate variables instead of combined ones
+  # 使用原始独立变量而非组合变量
   "Distribution_Centralization1", 
   "Distribution_Centralization2",
   "Distribution_Formalization1", 
@@ -250,51 +252,236 @@ ordinal_vars <- c(
   "Environment_Stable"
 )
 
-# Prepare data for clustering and handle missing values
+# 准备聚类数据并处理缺失值
 cluster_data <- boat_data_filtered %>%
   select(all_of(c(numerical_vars, ordinal_vars)))
 
-# Print missing value summary
-print("Missing values summary:")
+# 输出缺失值摘要
+print("缺失值摘要:")
 print(colSums(is.na(cluster_data)))
 
-# Handle missing values
+# 处理缺失值（使用中位数填充）
 cluster_data <- cluster_data %>%
   mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
 
-# Scale all variables
+# 标准化所有变量
 cluster_data_scaled <- scale(cluster_data)
+```
 
-# Determine optimal number of clusters using silhouette method
+### 确定最佳聚类数量
+在这部分，我们使用多种方法评估最佳聚类数量。
+
+#### 1. 轮廓分析（使用Gower距离）
+```{r}
+# 创建混合数据集用于K-prototypes
+cluster_data_mixed <- cluster_data
+cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
+                                         function(x) ordered(round(x), levels = 1:5))
+
+# 计算Gower距离矩阵
+gower_dist <- daisy(cluster_data_mixed, metric = "gower")
+
+# 使用轮廓分析确定最佳聚类数量
 max_k <- 8
-sil_width <- numeric(max_k - 1)
+sil_width_gower <- numeric(max_k - 1)
 
+# 对于不同的k值，创建PAM聚类并计算轮廓系数
 for(k in 2:max_k) {
-  pam_fit <- pam(cluster_data_scaled, k = k)
-  sil_width[k-1] <- pam_fit$silinfo$avg.width
+  pam_fit <- pam(gower_dist, k = k, diss = TRUE)
+  sil_width_gower[k-1] <- pam_fit$silinfo$avg.width
 }
 
-# Plot silhouette widths
-silhouette_plot <- ggplot(data.frame(k = 2:max_k, sil_width = sil_width), 
+# 绘制轮廓宽度图
+silhouette_plot_gower <- ggplot(data.frame(k = 2:max_k, sil_width = sil_width_gower), 
                          aes(x = k, y = sil_width)) +
   geom_line() +
   geom_point() +
-  labs(title = "Silhouette Analysis for Optimal k",
-       x = "Number of Clusters (k)",
-       y = "Average Silhouette Width") +
+  labs(title = "Gower距离的轮廓分析",
+       x = "聚类数量 (k)",
+       y = "平均轮廓宽度") +
   theme_minimal()
 
-# Perform PAM clustering with k=2
-k <- 2
-pam_result <- pam(cluster_data_scaled, k = k)
+print(silhouette_plot_gower)
+```
 
-# Add cluster assignments
+#### 2. 肘部法则（使用K-prototypes）
+```{r}
+# 设置随机种子以确保结果可重现
+set.seed(123)
+
+# 对于不同的k值，计算K-prototypes的总簇内平方和
+max_k <- 8
+wss <- numeric(max_k - 1)
+
+for(k in 2:max_k) {
+  kproto_result <- kproto(cluster_data_mixed, k = k, verbose = FALSE)
+  wss[k-1] <- kproto_result$tot.withinss
+}
+
+# 绘制肘部图
+elbow_plot <- ggplot(data.frame(k = 2:max_k, wss = wss), 
+                     aes(x = k, y = wss)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "K-prototypes的肘部法则",
+       x = "聚类数量 (k)",
+       y = "总簇内平方和") +
+  theme_minimal()
+
+print(elbow_plot)
+```
+
+#### 3. Gap统计量
+```{r}
+# 使用clusGap函数计算Gap统计量
+# 注意：这可能需要较长的计算时间
+gap_stat <- clusGap(cluster_data_scaled, 
+                   FUN = pam, 
+                   K.max = max_k, 
+                   B = 50)  # B是自举样本数量，生产环境可设为更高值
+
+# 绘制Gap统计量图
+gap_plot <- ggplot(data.frame(k = 1:max_k, gap = gap_stat$Tab[,"gap"], se = gap_stat$Tab[,"SE.sim"]), 
+                  aes(x = k, y = gap)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = gap - se, ymax = gap + se), width = 0.1) +
+  labs(title = "Gap统计量分析",
+       x = "聚类数量 (k)",
+       y = "Gap统计量（含标准误）") +
+  theme_minimal()
+
+print(gap_plot)
+
+# 输出最优聚类数量
+cat("基于最大Gap统计量的最优聚类数量:", maxSE(gap_stat$Tab[,"gap"], gap_stat$Tab[,"SE.sim"], method="firstSEmax"), "\n")
+```
+
+#### 4. 聚类稳定性分析
+```{r}
+# 设置随机种子
+set.seed(456)
+
+# 进行多次抽样和聚类以评估稳定性
+n_samples <- 10
+stability_results <- data.frame(k = integer(), ari = numeric())
+
+for(k in 2:5) {  # 关注k=2到k=5
+  ari_values <- numeric(n_samples)
+  
+  for(i in 1:n_samples) {
+    # 随机抽取80%的数据
+    sample_idx <- sample(1:nrow(cluster_data_mixed), size = floor(0.8 * nrow(cluster_data_mixed)))
+    sample_data <- cluster_data_mixed[sample_idx, ]
+    
+    # 对抽样数据进行聚类
+    kproto_sample <- kproto(sample_data, k = k, verbose = FALSE)
+    
+    # 对完整数据进行聚类
+    kproto_full <- kproto(cluster_data_mixed, k = k, verbose = FALSE)
+    
+    # 计算调整兰德指数 (ARI)
+    # 注意：我们只能比较样本中的观测
+    # adjustedRandIndex函数来自mclust包
+    common_idx <- sample_idx
+    ari <- adjustedRandIndex(kproto_sample$cluster, kproto_full$cluster[common_idx])
+    ari_values[i] <- ari
+  }
+  
+  stability_results <- rbind(stability_results, 
+                             data.frame(k = k, ari = mean(ari_values)))
+}
+
+# 绘制稳定性结果
+stability_plot <- ggplot(stability_results, aes(x = k, y = ari)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "聚类稳定性分析",
+       x = "聚类数量 (k)",
+       y = "平均调整兰德指数 (ARI)") +
+  ylim(0, 1) +
+  theme_minimal()
+
+print(stability_plot)
+
+# 输出各k值的稳定性结果
+cat("各k值的聚类稳定性（基于调整兰德指数）:\n")
+print(stability_results)
+```
+
+#### 5. 综合评估最佳聚类数量
+```{r}
+# 综合上述方法的结果
+methods_df <- data.frame(
+  K = 2:max_k,
+  Silhouette = sil_width_gower,
+  WSS = wss,
+  Gap = gap_stat$Tab[2:max_k,"gap"]
+)
+
+# 标准化指标以便比较
+methods_df_scaled <- methods_df %>%
+  mutate(
+    Silhouette_scaled = scale(Silhouette),
+    WSS_scaled = -scale(WSS),  # 负号使得较小的WSS有较高的标准化分数
+    Gap_scaled = scale(Gap)
+  )
+
+# 计算平均排名
+methods_df_scaled <- methods_df_scaled %>%
+  mutate(
+    Average_score = (Silhouette_scaled + WSS_scaled + Gap_scaled) / 3
+  )
+
+# 绘制综合得分
+combined_plot <- ggplot(methods_df_scaled, aes(x = K, y = Average_score)) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label = round(Average_score, 2)), vjust = -1) +
+  labs(title = "各聚类数量的综合评分",
+       x = "聚类数量 (k)",
+       y = "综合评分（标准化）") +
+  theme_minimal()
+
+print(combined_plot)
+
+# 找出得分最高的k值
+best_k <- methods_df_scaled$K[which.max(methods_df_scaled$Average_score)]
+cat("基于综合评分的最优聚类数量:", best_k, "\n")
+
+# 创建一个小表格来总结各种方法的结果
+summary_table <- data.frame(
+  Method = c("轮廓分析(Gower)", "肘部法则", "Gap统计量", "聚类稳定性", "综合评分"),
+  Suggested_K = c(
+    which.max(sil_width_gower) + 1,
+    which(diff(diff(wss)) > 0)[1] + 1,  # 肘部点是二阶导数首次为正的地方
+    maxSE(gap_stat$Tab[,"gap"], gap_stat$Tab[,"SE.sim"], method="firstSEmax"),
+    stability_results$k[which.max(stability_results$ari)],
+    best_k
+  )
+)
+
+# 输出摘要表
+print(summary_table)
+```
+
+### PAM聚类实现
+基于上述分析，我们选择具有最佳得分的k值进行PAM聚类。
+
+```{r}
+# 使用最佳k值进行PAM聚类
+k <- best_k  # 使用综合评分确定的最佳k值
+pam_result <- pam(gower_dist, k = k, diss = TRUE)
+
+# 添加聚类分配
+cluster_assignments <- pam_result$clustering
+cluster_data$cluster <- cluster_assignments
 cluster_data_scaled <- as.data.frame(cluster_data_scaled)
-cluster_data_scaled$cluster <- pam_result$clustering
+cluster_data_scaled$cluster <- cluster_assignments
 
-# Create visualizations
+# 创建可视化
 
-# 1. Numerical variables boxplots by cluster
+# 1. 数值变量按聚类的箱线图
 numerical_long <- cluster_data_scaled %>%
   select(all_of(numerical_vars), cluster) %>%
   pivot_longer(cols = all_of(numerical_vars),
@@ -305,12 +492,12 @@ num_boxplot <- ggplot(numerical_long,
                      aes(x = factor(cluster), y = value, fill = factor(cluster))) +
   geom_boxplot() +
   facet_wrap(~variable, scales = "free_y") +
-  labs(title = "Distribution of Numerical Variables by Cluster",
-       x = "Cluster",
-       y = "Standardized Value") +
+  labs(title = "按聚类的数值变量分布",
+       x = "聚类",
+       y = "标准化值") +
   theme_minimal()
 
-# 2. Variables heatmap
+# 2. 变量热图
 cluster_means <- cluster_data_scaled %>%
   group_by(cluster) %>%
   summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean)) %>%
@@ -324,42 +511,169 @@ heatmap_plot <- ggplot(cluster_means,
   scale_fill_viridis() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "Cluster Characteristics Heatmap",
-       x = "Variables",
-       y = "Cluster")
+  labs(title = "聚类特征热图",
+       x = "变量",
+       y = "聚类") +
+  coord_flip()  # 翻转坐标轴以提高可读性
 
-# Save results with original (unscaled) values
-results_with_originals <- cbind(
-  cluster_data,
-  cluster = pam_result$clustering
-)
+# 3. 聚类轮廓图
+sil_plot <- fviz_silhouette(pam_result, print.summary = FALSE) +
+  theme_minimal() +
+  labs(title = paste("k =", k, "的聚类轮廓图"))
 
-write.csv(results_with_originals, "BOAT2_Clustering_Results.csv", row.names = FALSE)
+# 保存结果（带原始未标准化值）
+results_with_originals <- cluster_data
 
-# Save plots
-pdf("BOAT2_Clustering_Visualizations.pdf", width = 15, height = 10)
-print(silhouette_plot)
+# 保存聚类结果
+write.csv(results_with_originals, "BOAT2_PAM_Clustering_Results.csv", row.names = FALSE)
+
+# 保存图表
+pdf("BOAT2_PAM_Clustering_Visualizations.pdf", width = 15, height = 10)
 print(num_boxplot)
 print(heatmap_plot)
+print(sil_plot)
 dev.off()
 
-# Print summary statistics
-print("Cluster Sizes:")
+# 输出摘要统计数据
+cat("聚类大小:\n")
 print(table(pam_result$clustering))
 
-# Calculate and print cluster profiles
-cluster_profiles <- cluster_data_scaled %>%
+# 计算并输出聚类概况
+cluster_profiles <- cluster_data %>%
   group_by(cluster) %>%
   summarise(across(everything(), 
                   list(mean = ~mean(., na.rm = TRUE),
                        sd = ~sd(., na.rm = TRUE))))
 
-print("\nCluster Profiles:")
+cat("\n聚类特征概况:\n")
 print(cluster_profiles)
 
-# Add silhouette information
-print("\nSilhouette Information:")
-print(summary(pam_result$silinfo$silh[,3]))
+# 添加轮廓信息
+cat("\n轮廓信息:\n")
+print(summary(pam_result$silinfo$silh))
+```
+
+### K-Prototypes聚类实现
+基于前面的分析，我们选择2个和3个聚类进行K-Prototypes聚类，并比较结果。
+
+```{r}
+# 设置随机种子以确保结果可重现
+set.seed(123)
+
+# 执行k=2和k=3的聚类
+k2_result <- kproto(cluster_data_mixed, k = 2)
+k3_result <- kproto(cluster_data_mixed, k = 3)
+
+# 创建比较数据集
+comparison_data <- cluster_data %>%
+  mutate(
+    cluster_k2 = factor(k2_result$cluster),
+    cluster_k3 = factor(k3_result$cluster)
+  )
+
+# 创建数值变量的可视化
+numerical_plots <- list()
+for(var in numerical_vars) {
+  # K=2箱线图
+  p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
+    geom_boxplot() +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=2"), x = "聚类", y = var) +
+    theme_minimal()
+  
+  # K=3箱线图
+  p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
+    geom_boxplot() +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=3"), x = "聚类", y = var) +
+    theme_minimal()
+  
+  numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
+}
+
+# 创建聚类特征热图
+cluster_characteristics <- bind_rows(
+  # K=2特征
+  comparison_data %>%
+    group_by(cluster_k2) %>%
+    summarise(across(all_of(ordinal_vars), mean)) %>%
+    pivot_longer(-cluster_k2, names_to = "variable", values_to = "value") %>%
+    mutate(k = "K=2", cluster = as.character(cluster_k2)) %>%
+    select(-cluster_k2),
+  
+  # K=3特征
+  comparison_data %>%
+    group_by(cluster_k3) %>%
+    summarise(across(all_of(ordinal_vars), mean)) %>%
+    pivot_longer(-cluster_k3, names_to = "variable", values_to = "value") %>%
+    mutate(k = "K=3", cluster = as.character(cluster_k3)) %>%
+    select(-cluster_k3)
+)
+
+# 创建热图
+characteristics_heatmap <- ggplot(cluster_characteristics, 
+                                aes(x = variable, y = paste(k, "Cluster", cluster), 
+                                    fill = value)) +
+  geom_tile() +
+  scale_fill_viridis() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "聚类特征热图",
+       x = "变量",
+       y = "聚类")
+
+# 保存可视化结果
+pdf("BOAT2_KProto_Cluster_Analysis.pdf", width = 15, height = 12)
+
+# 输出数值变量图
+for(plot in numerical_plots) {
+  grid.arrange(plot)
+}
+
+# 输出热图
+print(characteristics_heatmap)
+
+# 输出轮廓图
+par(mfrow = c(1,2))
+plot(silhouette(k2_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "轮廓图 - K=2")
+plot(silhouette(k3_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "轮廓图 - K=3")
+
+dev.off()
+
+# 保存K-Prototypes聚类结果
+kproto_results <- data.frame(
+  original_data = cluster_data,
+  cluster_k2 = k2_result$cluster,
+  cluster_k3 = k3_result$cluster
+)
+
+write.csv(kproto_results, "BOAT2_KProto_Clustering_Results.csv", row.names = FALSE)
+
+# 比较PAM和K-Prototypes的一致性
+comparison_with_pam <- data.frame(
+  PAM_cluster = pam_result$clustering,
+  KProto_k2 = k2_result$cluster,
+  KProto_k3 = k3_result$cluster
+)
+
+# 计算调整兰德指数（adjustedRandIndex函数来自mclust包）
+cat("PAM与K-Prototypes (k=2) 的调整兰德指数:", 
+    adjustedRandIndex(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k2), "\n")
+
+cat("PAM与K-Prototypes (k=3) 的调整兰德指数:", 
+    adjustedRandIndex(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k3), "\n")
+
+# 创建一个列联表
+pam_kproto_k2_table <- table(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k2)
+pam_kproto_k3_table <- table(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k3)
+
+cat("\nPAM与K-Prototypes (k=2) 的列联表:\n")
+print(pam_kproto_k2_table)
+
+cat("\nPAM与K-Prototypes (k=3) 的列联表:\n")
+print(pam_kproto_k3_table)
 ```
 
 ## Detailed Cluster Analysis and Visualization
