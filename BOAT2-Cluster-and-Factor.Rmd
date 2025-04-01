@@ -1,0 +1,558 @@
+---
+title: "BOAT2-Cluster-and-Factor"
+output: html_document
+---
+
+# Data Analysis and Clustering of Building Owners' Decision-Making Profiles
+
+## Load Required Libraries
+```{r}
+# Core data manipulation and visualization
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(scales)
+
+# Clustering and dimension reduction
+library(cluster)
+library(clustMixType)
+library(factoextra)
+library(NbClust)
+library(umap)
+
+# Visualization enhancements
+library(dendextend)
+library(viridis)
+library(RColorBrewer)
+library(ggrepel)
+```
+
+## Data Preparation and Initial Clustering Analysis
+This section focuses on preparing the data and performing hierarchical clustering analysis to identify distinct groups of building owners based on their decision-making profiles.
+
+```{r}
+# Read the data
+boat_data <- read.csv("BOAT2_Data.csv")
+
+# Create a unique ID for each observation
+boat_data$ID <- 1:nrow(boat_data)
+
+# Extract and process the decision-making profile characteristics
+dmpc_data <- boat_data %>%
+  # Calculate mean values for multi-item constructs
+  mutate(
+    Distribution_Centralization = (Distribution_Centralization1 + Distribution_Centralization2) / 2,
+    Distribution_Formalization = (Distribution_Formalization1 + Distribution_Formalization2) / 2,
+    Style_Participation = (Style_Participation1 + Style_Participation2) / 2,
+    Style_Organicity = (Style_Organicity1 + Style_Organicity2) / 2,
+    Style_Coercion = (Style_Coercion1 + Style_Coercion2) / 2
+  ) %>%
+  # Select the variables for clustering
+  select(
+    ID, 
+    Distribution_Centralization, Distribution_Formalization,
+    Style_Technocracy, Style_Participation, Style_Organicity, Style_Coercion,
+    Culture_Command, Culture_Symbolic, Culture_Rationale, Culture_Generative, Culture_Transactive,
+    Flexibility_openness, Flexibility_Recursiveness,
+    Risk,
+    Environment_Growth, Environment_Hostile, Environment_Stable,
+    PDM_Type
+  )
+
+# Handle missing values
+dmpc_data <- dmpc_data %>%
+  mutate(across(where(is.numeric), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Extract PDM_Type for later use
+pdm_types <- dmpc_data$PDM_Type
+ids <- dmpc_data$ID
+
+# Prepare data for clustering (only numeric variables)
+dmpc_matrix <- dmpc_data %>%
+  select(-ID, -PDM_Type) %>%
+  as.matrix()
+
+# Scale the data
+dmpc_scaled <- scale(dmpc_matrix)
+rownames(dmpc_scaled) <- ids
+
+# Compute distance matrix
+dist_matrix <- dist(dmpc_scaled, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+# Ward's method tends to create more balanced, interpretable clusters
+hc_ward <- hclust(dist_matrix, method = "ward.D2")
+
+# Create a dendrogram object
+dend <- as.dendrogram(hc_ward)
+
+# Define color palette for PDM types
+pdm_colors <- brewer.pal(length(unique(pdm_types)), "Set1")
+names(pdm_colors) <- unique(pdm_types)
+
+# Color the labels based on PDM type
+pdm_colors_mapped <- pdm_colors[pdm_types]
+labels_colors(dend) <- pdm_colors_mapped[order.dendrogram(dend)]
+
+# Set up the plot with larger dimensions and margins
+pdf("BOAT2_Dendrogram_PDM.pdf", width = 12, height = 8)
+par(mar = c(8, 4, 4, 10))  # Bottom, left, top, right margins
+
+# Plot the dendrogram
+plot(dend,
+     main = "Hierarchical Clustering of Building Owners by Decision-Making Profiles",
+     sub = "Colored by Project Delivery Method (PDM)",
+     xlab = "",
+     ylab = "Height (Dissimilarity)",
+     horiz = FALSE,
+     axes = TRUE,
+     cex = 0.7,
+     leaflab = "none")  # Don't show default labels
+
+# Add custom colored labels at the bottom
+labels <- labels(dend)
+pdm_label_colors <- pdm_colors_mapped[order.dendrogram(dend)]
+text(1:length(labels), 
+     par("usr")[3] - 0.1,  # Position below axis
+     labels = labels, 
+     col = pdm_label_colors,
+     srt = 90,  # Rotate text 90 degrees
+     adj = 1,   # Align to right
+     cex = 0.6, # Text size
+     xpd = TRUE)  # Allow plotting outside figure region
+
+# Add a legend for PDM types
+legend("topright", 
+       legend = names(pdm_colors),
+       fill = pdm_colors,
+       title = "Project Delivery Method",
+       cex = 0.8,
+       bg = "white",
+       xpd = TRUE)
+
+# Cut the tree to get 3 clusters (adjust based on your analysis)
+k <- 3  # Number of clusters
+rect.hclust(hc_ward, k = k, border = 2:(k+1))
+
+# Add cluster labels
+clusters <- cutree(hc_ward, k = k)
+cluster_centers <- tapply(1:length(clusters), clusters, mean)
+text(cluster_centers, par("usr")[4] - 5, 
+     labels = paste("Cluster", 1:k), 
+     cex = 1.2, 
+     font = 2,
+     col = 2:(k+1),
+     xpd = TRUE)
+
+dev.off()
+
+# Additionally create a dendrogram with branches colored by clusters
+dend_colored <- color_branches(dend, k = k)
+
+# Create a second plot with branches colored by cluster
+pdf("BOAT2_Dendrogram_Clusters.pdf", width = 12, height = 8)
+par(mar = c(8, 4, 4, 10))
+
+plot(dend_colored,
+     main = "Hierarchical Clustering of Building Owners by Decision-Making Profiles",
+     sub = "Branches Colored by Cluster Assignment",
+     xlab = "",
+     ylab = "Height (Dissimilarity)",
+     horiz = FALSE,
+     axes = TRUE,
+     leaflab = "none")
+
+# Add cluster rectangles
+rect.hclust(hc_ward, k = k, border = 2:(k+1))
+
+# Add cluster labels
+text(cluster_centers, par("usr")[4] - 5, 
+     labels = paste("Cluster", 1:k), 
+     cex = 1.2, 
+     font = 2,
+     col = 2:(k+1),
+     xpd = TRUE)
+
+# Optional: Add PDM labels at the bottom
+text(1:length(labels), 
+     par("usr")[3] - 0.1,
+     labels = labels, 
+     col = pdm_label_colors,
+     srt = 90,
+     adj = 1,
+     cex = 0.6,
+     xpd = TRUE)
+
+dev.off()
+
+# Output cluster assignments with PDM types
+cluster_pdm <- data.frame(
+  ID = ids[order.dendrogram(dend)],
+  PDM_Type = pdm_types[order.dendrogram(dend)],
+  Cluster = clusters[order.dendrogram(dend)]
+)
+
+# Save the cluster assignments
+write.csv(cluster_pdm, "BOAT2_Cluster_Assignments.csv", row.names = FALSE)
+
+# Create a contingency table of PDM types by cluster
+pdm_cluster_table <- table(pdm_types, clusters)
+print(pdm_cluster_table)
+
+# Calculate percentages within each cluster
+pdm_cluster_percent <- prop.table(pdm_cluster_table, margin = 2) * 100
+print(round(pdm_cluster_percent, 1))
+
+# Save the contingency table
+write.csv(pdm_cluster_table, "BOAT2_PDM_Cluster_Table.csv")
+```
+
+## K-Prototypes Clustering Analysis
+This section implements K-prototypes clustering to handle mixed data types (numerical and categorical variables) and compares different clustering solutions.
+
+```{r}
+# Remove the outlier with 3700 employees
+boat_data_filtered <- boat_data %>%
+  filter(Org_Structure_Employees != 3700)
+
+# Define numerical and ordinal variables - using original variables instead of combined ones
+numerical_vars <- c(
+  "Org_Structure_Employees",
+  "Org_Structure_Locations",
+  "Org_Structure_Depts",
+  "Org_Structure_Layers"
+)
+
+ordinal_vars <- c(
+  # Use original separate variables instead of combined ones
+  "Distribution_Centralization1", 
+  "Distribution_Centralization2",
+  "Distribution_Formalization1", 
+  "Distribution_Formalization2",
+  "Style_Technocracy", 
+  "Style_Participation1", 
+  "Style_Participation2", 
+  "Style_Organicity1", 
+  "Style_Organicity2", 
+  "Style_Coercion1", 
+  "Style_Coercion2",
+  "Culture_Command", 
+  "Culture_Symbolic", 
+  "Culture_Rationale", 
+  "Culture_Generative", 
+  "Culture_Transactive",
+  "Flexibility_openness", 
+  "Flexibility_Recursiveness",
+  "Risk",
+  "Environment_Growth", 
+  "Environment_Hostile", 
+  "Environment_Stable"
+)
+
+# Prepare data for clustering and handle missing values
+cluster_data <- boat_data_filtered %>%
+  select(all_of(c(numerical_vars, ordinal_vars)))
+
+# Print missing value summary
+print("Missing values summary:")
+print(colSums(is.na(cluster_data)))
+
+# Handle missing values
+cluster_data <- cluster_data %>%
+  mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+# Scale all variables
+cluster_data_scaled <- scale(cluster_data)
+
+# Determine optimal number of clusters using silhouette method
+max_k <- 8
+sil_width <- numeric(max_k - 1)
+
+for(k in 2:max_k) {
+  pam_fit <- pam(cluster_data_scaled, k = k)
+  sil_width[k-1] <- pam_fit$silinfo$avg.width
+}
+
+# Plot silhouette widths
+silhouette_plot <- ggplot(data.frame(k = 2:max_k, sil_width = sil_width), 
+                         aes(x = k, y = sil_width)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Silhouette Analysis for Optimal k",
+       x = "Number of Clusters (k)",
+       y = "Average Silhouette Width") +
+  theme_minimal()
+
+# Perform PAM clustering with k=2
+k <- 2
+pam_result <- pam(cluster_data_scaled, k = k)
+
+# Add cluster assignments
+cluster_data_scaled <- as.data.frame(cluster_data_scaled)
+cluster_data_scaled$cluster <- pam_result$clustering
+
+# Create visualizations
+
+# 1. Numerical variables boxplots by cluster
+numerical_long <- cluster_data_scaled %>%
+  select(all_of(numerical_vars), cluster) %>%
+  pivot_longer(cols = all_of(numerical_vars),
+               names_to = "variable",
+               values_to = "value")
+
+num_boxplot <- ggplot(numerical_long, 
+                     aes(x = factor(cluster), y = value, fill = factor(cluster))) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free_y") +
+  labs(title = "Distribution of Numerical Variables by Cluster",
+       x = "Cluster",
+       y = "Standardized Value") +
+  theme_minimal()
+
+# 2. Variables heatmap
+cluster_means <- cluster_data_scaled %>%
+  group_by(cluster) %>%
+  summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean)) %>%
+  pivot_longer(-cluster, 
+               names_to = "variable", 
+               values_to = "value")
+
+heatmap_plot <- ggplot(cluster_means, 
+                      aes(x = variable, y = factor(cluster), fill = value)) +
+  geom_tile() +
+  scale_fill_viridis() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Cluster Characteristics Heatmap",
+       x = "Variables",
+       y = "Cluster")
+
+# Save results with original (unscaled) values
+results_with_originals <- cbind(
+  cluster_data,
+  cluster = pam_result$clustering
+)
+
+write.csv(results_with_originals, "BOAT2_Clustering_Results.csv", row.names = FALSE)
+
+# Save plots
+pdf("BOAT2_Clustering_Visualizations.pdf", width = 15, height = 10)
+print(silhouette_plot)
+print(num_boxplot)
+print(heatmap_plot)
+dev.off()
+
+# Print summary statistics
+print("Cluster Sizes:")
+print(table(pam_result$clustering))
+
+# Calculate and print cluster profiles
+cluster_profiles <- cluster_data_scaled %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), 
+                  list(mean = ~mean(., na.rm = TRUE),
+                       sd = ~sd(., na.rm = TRUE))))
+
+print("\nCluster Profiles:")
+print(cluster_profiles)
+
+# Add silhouette information
+print("\nSilhouette Information:")
+print(summary(pam_result$silinfo$silh[,3]))
+```
+
+## Detailed Cluster Analysis and Visualization
+This section provides detailed analysis of the clusters and creates various visualizations to understand the characteristics of each cluster.
+
+```{r}
+# Create dataset for kprototypes
+cluster_data_mixed <- cluster_data
+cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
+                                         function(x) ordered(round(x), levels = 1:5))
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Perform clustering with k=2 and k=3
+k2_result <- kproto(cluster_data_mixed, k = 2)
+k3_result <- kproto(cluster_data_mixed, k = 3)
+
+# Create comparison dataset
+comparison_data <- cluster_data %>%
+  mutate(
+    cluster_k2 = factor(k2_result$cluster),
+    cluster_k3 = factor(k3_result$cluster)
+  )
+
+# Create visualizations for numerical variables
+numerical_plots <- list()
+for(var in numerical_vars) {
+  # K=2 boxplot
+  p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
+    geom_boxplot() +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=2"), x = "Cluster", y = var) +
+    theme_minimal()
+  
+  # K=3 boxplot
+  p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
+    geom_boxplot() +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=3"), x = "Cluster", y = var) +
+    theme_minimal()
+  
+  numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
+}
+
+# Create cluster characteristics heatmap
+cluster_characteristics <- bind_rows(
+  # K=2 characteristics
+  comparison_data %>%
+    group_by(cluster_k2) %>%
+    summarise(across(all_of(ordinal_vars), mean)) %>%
+    pivot_longer(-cluster_k2, names_to = "variable", values_to = "value") %>%
+    mutate(k = "K=2", cluster = as.character(cluster_k2)) %>%
+    select(-cluster_k2),
+  
+  # K=3 characteristics
+  comparison_data %>%
+    group_by(cluster_k3) %>%
+    summarise(across(all_of(ordinal_vars), mean)) %>%
+    pivot_longer(-cluster_k3, names_to = "variable", values_to = "value") %>%
+    mutate(k = "K=3", cluster = as.character(cluster_k3)) %>%
+    select(-cluster_k3)
+)
+
+# Create heatmap
+characteristics_heatmap <- ggplot(cluster_characteristics, 
+                                aes(x = variable, y = paste(k, "Cluster", cluster), 
+                                    fill = value)) +
+  geom_tile() +
+  scale_fill_viridis() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Cluster Characteristics Heatmap",
+       x = "Variables",
+       y = "Clusters")
+
+# Save visualizations
+pdf("Cluster_Analysis_Visualizations.pdf", width = 15, height = 12)
+
+# Print numerical variable plots
+for(plot in numerical_plots) {
+  grid.arrange(plot)
+}
+
+# Print heatmap
+print(characteristics_heatmap)
+
+# Print silhouette plots
+par(mfrow = c(1,2))
+plot(silhouette(k2_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "Silhouette Plot - K=2")
+plot(silhouette(k3_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "Silhouette Plot - K=3")
+
+dev.off()
+```
+
+## Dimension Reduction Analysis
+This section performs PCA and UMAP analysis to visualize the clustering results in lower dimensions.
+
+```{r}
+# Prepare data for PCA - using all individual variables
+pca_data <- comparison_data %>%
+  select(all_of(c(numerical_vars, ordinal_vars)))
+
+# Perform PCA
+pca_result <- prcomp(pca_data, scale. = TRUE)
+
+# Create PCA coordinates with cluster information
+pca_coords <- as.data.frame(pca_result$x) %>%
+  bind_cols(
+    cluster_k2 = factor(comparison_data$cluster_k2),
+    cluster_k3 = factor(comparison_data$cluster_k3)
+  )
+
+# Create PCA plots
+pca_plot_k2 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k2)) +
+  geom_point(size = 3, alpha = 0.6) +
+  scale_color_viridis_d() +
+  labs(title = "PCA Plot - K=2",
+       color = "Cluster") +
+  theme_minimal() +
+  stat_ellipse(level = 0.95)
+
+pca_plot_k3 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k3)) +
+  geom_point(size = 3, alpha = 0.6) +
+  scale_color_viridis_d() +
+  labs(title = "PCA Plot - K=3",
+       color = "Cluster") +
+  theme_minimal() +
+  stat_ellipse(level = 0.95)
+
+# Create UMAP visualization
+umap_result <- umap(pca_data)
+umap_coords <- as.data.frame(umap_result$layout)
+colnames(umap_coords) <- c("UMAP1", "UMAP2")
+umap_coords$cluster_k2 <- factor(comparison_data$cluster_k2)
+umap_coords$cluster_k3 <- factor(comparison_data$cluster_k3)
+
+# Create UMAP plots
+umap_plot_k2 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k2)) +
+  geom_point(size = 3, alpha = 0.6) +
+  scale_color_viridis_d() +
+  labs(title = "UMAP Plot - K=2",
+       color = "Cluster") +
+  theme_minimal()
+
+umap_plot_k3 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k3)) +
+  geom_point(size = 3, alpha = 0.6) +
+  scale_color_viridis_d() +
+  labs(title = "UMAP Plot - K=3",
+       color = "Cluster") +
+  theme_minimal()
+
+# Create scree plot
+variance_explained <- data.frame(
+  PC = 1:length(pca_result$sdev),
+  Variance = pca_result$sdev^2 / sum(pca_result$sdev^2)
+)
+
+scree_plot <- ggplot(variance_explained, aes(x = PC, y = Variance)) +
+  geom_bar(stat = "identity") +
+  geom_line(aes(y = cumsum(Variance)), color = "red") +
+  geom_point(aes(y = cumsum(Variance)), color = "red") +
+  scale_y_continuous(labels = percent_format(),
+                    sec.axis = sec_axis(~., labels = percent_format())) +
+  labs(title = "Scree Plot with Cumulative Variance",
+       x = "Principal Component",
+       y = "Proportion of Variance Explained") +
+  theme_minimal()
+
+# Save dimension reduction visualizations
+pdf("Dimension_Reduction_Analysis.pdf", width = 15, height = 12)
+
+# Print PCA plots
+grid.arrange(pca_plot_k2, pca_plot_k3, ncol = 2)
+
+# Print UMAP plots
+grid.arrange(umap_plot_k2, umap_plot_k3, ncol = 2)
+
+# Print scree plot
+print(scree_plot)
+
+dev.off()
+
+# Print PCA summary
+print("PCA Summary:")
+print(summary(pca_result))
+
+# Print top variable loadings
+print("\nTop variable loadings for first 3 PCs:")
+loadings <- pca_result$rotation[,1:3]
+loadings_df <- as.data.frame(loadings)
+loadings_df$Variable <- rownames(loadings_df)
+print(loadings_df %>% arrange(desc(abs(PC1))))
+```
