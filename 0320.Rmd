@@ -3,16 +3,35 @@ title: "0320"
 output: html_document
 ---
 
+# Data Analysis and Clustering of Building Owners' Decision-Making Profiles
 
-
+## Load Required Libraries
 ```{r}
-# Load required libraries
-library(readr)
+# Core data manipulation and visualization
+library(tidyverse)
 library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(scales)
+
+# Clustering and dimension reduction
+library(cluster)
+library(clustMixType)
+library(factoextra)
+library(NbClust)
+library(umap)
+
+# Visualization enhancements
 library(dendextend)
 library(viridis)
 library(RColorBrewer)
+library(ggrepel)
+```
 
+## Data Preparation and Initial Clustering Analysis
+This section focuses on preparing the data and performing hierarchical clustering analysis to identify distinct groups of building owners based on their decision-making profiles.
+
+```{r}
 # Read the data
 boat_data <- read.csv("BOAT2_Data.csv")
 
@@ -189,19 +208,10 @@ print(round(pdm_cluster_percent, 1))
 write.csv(pdm_cluster_table, "BOAT2_PDM_Cluster_Table.csv")
 ```
 
-
-
+## K-Prototypes Clustering Analysis
+This section implements K-prototypes clustering to handle mixed data types (numerical and categorical variables) and compares different clustering solutions.
 
 ```{r}
-# Load required libraries
-library(tidyverse)
-library(cluster)
-library(viridis)
-library(RColorBrewer)
-
-# Read the data
-boat_data <- read.csv("BOAT2_Data.csv")
-
 # Remove the outlier with 3700 employees
 boat_data_filtered <- boat_data %>%
   filter(Org_Structure_Employees != 3700)
@@ -356,598 +366,40 @@ print("\nSilhouette Information:")
 print(summary(pam_result$silinfo$silh[,3]))
 ```
 
-
-
-```{r}
-# Load required libraries
-library(tidyverse)
-library(viridis)
-library(gridExtra)
-library(fmsb)
-
-# 1. Heatmap and boxplot code remains the same as before
-# ... (previous code for p1 and p2)
-
-# 3. Modified radar chart code
-# Prepare data for radar chart
-radar_data <- cluster_data_scaled %>%
-  as.data.frame() %>%
-  mutate(cluster = as.factor(cluster)) %>%
-  group_by(cluster) %>%
-  summarise(across(all_of(ordinal_vars), mean)) %>%
-  ungroup()
-
-# Split ordinal variables into two groups for better visualization
-ordinal_vars1 <- ordinal_vars[1:8]
-ordinal_vars2 <- ordinal_vars[9:length(ordinal_vars)]
-
-# Prepare first radar chart data
-radar_data1 <- radar_data %>%
-  select(all_of(ordinal_vars1)) %>%
-  as.data.frame()
-rownames(radar_data1) <- paste("Cluster", 1:2)
-
-# Add max and min for first chart
-radar_data1 <- rbind(
-  rep(2, ncol(radar_data1)),
-  rep(-2, ncol(radar_data1)),
-  radar_data1
-)
-
-# Prepare second radar chart data
-radar_data2 <- radar_data %>%
-  select(all_of(ordinal_vars2)) %>%
-  as.data.frame()
-rownames(radar_data2) <- paste("Cluster", 1:2)
-
-# Add max and min for second chart
-radar_data2 <- rbind(
-  rep(2, ncol(radar_data2)),
-  rep(-2, ncol(radar_data2)),
-  radar_data2
-)
-
-# Save all plots
-pdf("Clustering_Visualizations.pdf", width = 12, height = 15)
-
-# Plot heatmap
-print(p1)
-
-# Plot boxplots
-print(p2)
-
-# Plot radar charts
-par(mfrow = c(2, 1))  # Set up 2x1 plotting area
-
-# First radar chart
-par(mar = c(2, 2, 4, 2))
-radarchart(
-  radar_data1,
-  title = "Decision-Making Profile by Cluster (Part 1)",
-  pcol = c("red", "blue"),
-  pfcol = scales::alpha(c("red", "blue"), 0.3),
-  plwd = 2,
-  cglcol = "grey",
-  cglty = 1,
-  axislabcol = "grey",
-  seg = 4
-)
-legend(
-  "topright",
-  legend = paste("Cluster", 1:2),
-  col = c("red", "blue"),
-  lwd = 2,
-  bty = "n"
-)
-
-# Second radar chart
-par(mar = c(2, 2, 4, 2))
-radarchart(
-  radar_data2,
-  title = "Decision-Making Profile by Cluster (Part 2)",
-  pcol = c("red", "blue"),
-  pfcol = scales::alpha(c("red", "blue"), 0.3),
-  plwd = 2,
-  cglcol = "grey",
-  cglty = 1,
-  axislabcol = "grey",
-  seg = 4
-)
-legend(
-  "topright",
-  legend = paste("Cluster", 1:2),
-  col = c("red", "blue"),
-  lwd = 2,
-  bty = "n"
-)
-
-dev.off()
-
-```
+## Detailed Cluster Analysis and Visualization
+This section provides detailed analysis of the clusters and creates various visualizations to understand the characteristics of each cluster.
 
 ```{r}
-print(p1)
-```
-```{r}
-print(p2)
-```
-
-
-
-```{r}
-# Load required libraries
-library(tidyverse)
-library(cluster)
-library(factoextra)
-library(NbClust)
-library(gridExtra)
-
-# 1. Elbow Method
-wss <- numeric(10)
-for (i in 1:10) {
-  wss[i] <- sum(pam(cluster_data_scaled, k = i)$withinss)
-}
-
-elbow_plot <- ggplot(data.frame(k = 1:10, wss = wss), aes(x = k, y = wss)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Elbow Method for Optimal k",
-       x = "Number of Clusters (k)",
-       y = "Within Sum of Squares") +
-  theme_minimal()
-
-# 2. Silhouette Method
-sil_width <- numeric(9)
-for(i in 2:10) {
-  pam_fit <- pam(cluster_data_scaled, k = i)
-  sil_width[i-1] <- mean(silhouette(pam_fit$clustering, dist(cluster_data_scaled))[,3])
-}
-
-silhouette_plot <- ggplot(data.frame(k = 2:10, sil_width = sil_width), aes(x = k, y = sil_width)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Silhouette Method for Optimal k",
-       x = "Number of Clusters (k)",
-       y = "Average Silhouette Width") +
-  theme_minimal()
-
-# 3. Gap Statistic Method
-set.seed(123)
-gap_stat <- clusGap(cluster_data_scaled, FUN = pam, K.max = 10, B = 50)
-gap_plot <- fviz_gap_stat(gap_stat) +
-  labs(title = "Gap Statistic Method for Optimal k") +
-  theme_minimal()
-
-# 4. Using fviz_nbclust for Silhouette visualization
-sil_plot <- fviz_nbclust(cluster_data_scaled, pam, method = "silhouette", k.max = 10) +
-  labs(title = "Optimal Number of Clusters\nSilhouette Method") +
-  theme_minimal()
-
-# Save all plots
-pdf("Optimal_K_Analysis.pdf", width = 12, height = 10)
-grid.arrange(elbow_plot, silhouette_plot, gap_plot, sil_plot, ncol = 2)
-dev.off()
-
-# Print optimal k values according to different methods
-print("Optimal k according to different methods:")
-print(paste("Silhouette Method:", which.max(sil_width) + 1))
-print(paste("Gap Statistic Method:", with(gap_stat, which.max(Tab[,"gap"]))))
-
-# Additional detailed silhouette analysis for k=2 and k=3
-k2_pam <- pam(cluster_data_scaled, k = 2)
-k3_pam <- pam(cluster_data_scaled, k = 3)
-
-# Create silhouette plots for k=2 and k=3
-pdf("Silhouette_Comparison.pdf", width = 10, height = 6)
-par(mfrow = c(1,2))
-plot(silhouette(k2_pam$clustering, dist(cluster_data_scaled)), 
-     main = "Silhouette Plot for k=2")
-plot(silhouette(k3_pam$clustering, dist(cluster_data_scaled)), 
-     main = "Silhouette Plot for k=3")
-dev.off()
-
-# Print average silhouette widths
-print("Average silhouette width comparison:")
-print(paste("k=2:", mean(silhouette(k2_pam$clustering, dist(cluster_data_scaled))[,3])))
-print(paste("k=3:", mean(silhouette(k3_pam$clustering, dist(cluster_data_scaled))[,3])))
-```
-
-
-```{r}
-# 加载必要的库
-library(tidyverse)
-library(clustMixType)  # 用于K-prototypes聚类
-library(viridis)
-library(RColorBrewer)
-library(factoextra)    # 用于可视化
-
-# 读取数据
-boat_data <- read.csv("BOAT2_Data.csv")
-
-# 移除员工数为3700的异常值
-boat_data_filtered <- boat_data %>%
-  filter(Org_Structure_Employees != 3700)
-
-# 创建合并变量
-dmpc_data <- boat_data_filtered %>%
-  mutate(
-    Distribution_Centralization = (Distribution_Centralization1 + Distribution_Centralization2) / 2,
-    Distribution_Formalization = (Distribution_Formalization1 + Distribution_Formalization2) / 2,
-    Style_Participation = (Style_Participation1 + Style_Participation2) / 2,
-    Style_Organicity = (Style_Organicity1 + Style_Organicity2) / 2,
-    Style_Coercion = (Style_Coercion1 + Style_Coercion2) / 2
-  )
-
-# 定义数值型和有序型变量
-numerical_vars <- c(
-  "Org_Structure_Employees",
-  "Org_Structure_Locations",
-  "Org_Structure_Depts",
-  "Org_Structure_Layers"
-)
-
-ordinal_vars <- c(
-  "Distribution_Centralization", 
-  "Distribution_Formalization",
-  "Style_Technocracy", 
-  "Style_Participation", 
-  "Style_Organicity", 
-  "Style_Coercion",
-  "Culture_Command", 
-  "Culture_Symbolic", 
-  "Culture_Rationale", 
-  "Culture_Generative", 
-  "Culture_Transactive",
-  "Flexibility_openness", 
-  "Flexibility_Recursiveness",
-  "Risk",
-  "Environment_Growth", 
-  "Environment_Hostile", 
-  "Environment_Stable"
-)
-
-# 准备聚类数据
-cluster_data <- dmpc_data %>%
-  select(all_of(c(numerical_vars, ordinal_vars)))
-
-# 打印缺失值摘要
-print("缺失值摘要:")
-print(colSums(is.na(cluster_data)))
-
-# 处理缺失值
-cluster_data <- cluster_data %>%
-  mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
-
-# 创建用于kprototypes的数据集
-# 记录哪些变量是数值型的
-num_indices <- which(colnames(cluster_data) %in% numerical_vars)
-
-# 将有序变量转换为因子，但保持其顺序性质
+# Create dataset for kprototypes
 cluster_data_mixed <- cluster_data
 cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
                                          function(x) ordered(round(x), levels = 1:5))
 
-# 设置随机种子以保证结果可重现
+# Set random seed for reproducibility
 set.seed(123)
 
-# 确定最佳聚类数(k=2)
-k <- 2
-
-# 执行K-prototypes聚类，不手动设置lambda值，由函数自动选择
-kprototypes_result <- kproto(cluster_data_mixed, k = k, keep.data = TRUE)
-
-# 添加聚类分配
-dmpc_data$cluster <- kprototypes_result$cluster
-
-# 创建可视化
-
-# 1. 创建数值变量的箱线图
-numerical_long <- dmpc_data %>%
-  select(all_of(numerical_vars), cluster) %>%
-  pivot_longer(cols = all_of(numerical_vars),
-               names_to = "variable",
-               values_to = "value")
-
-num_boxplot <- ggplot(numerical_long, 
-                     aes(x = factor(cluster), y = value, fill = factor(cluster))) +
-  geom_boxplot() +
-  facet_wrap(~variable, scales = "free_y") +
-  labs(title = "按聚类划分的数值变量分布",
-       x = "聚类",
-       y = "值") +
-  theme_minimal()
-
-# 2. 计算各聚类在所有变量上的平均值
-# 需要将有序因子转回数值
-dmpc_data_for_means <- dmpc_data
-dmpc_data_for_means[ordinal_vars] <- lapply(dmpc_data_for_means[ordinal_vars], as.numeric)
-
-cluster_means <- dmpc_data_for_means %>%
-  group_by(cluster) %>%
-  summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean, na.rm = TRUE)) %>%
-  pivot_longer(-cluster, 
-               names_to = "variable", 
-               values_to = "value")
-
-# 创建热图
-heatmap_plot <- ggplot(cluster_means, 
-                      aes(x = variable, y = factor(cluster), fill = value)) +
-  geom_tile() +
-  scale_fill_viridis() +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "聚类特征热图",
-       x = "变量",
-       y = "聚类") +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
-
-# 保存结果
-results_with_clusters <- dmpc_data %>%
-  select(all_of(c(numerical_vars, ordinal_vars)), cluster, PDM_Type)
-
-write.csv(results_with_clusters, "BOAT2_KPrototypes_Results.csv", row.names = FALSE)
-
-# 保存图表
-pdf("BOAT2_KPrototypes_Visualizations.pdf", width = 15, height = 10)
-print(num_boxplot)
-print(heatmap_plot)
-
-# 计算Gower距离矩阵用于轮廓分析
-library(cluster)
-dist_matrix <- daisy(cluster_data_mixed, metric = "gower")
-sil <- silhouette(kprototypes_result$cluster, dist_matrix)
-plot(sil, main = paste("K-Prototypes聚类的轮廓图 (k =", k, ")"))
-
-# 添加PDM_Type与聚类的关联分析
-pdm_cluster <- table(dmpc_data$PDM_Type, dmpc_data$cluster)
-print(pdm_cluster)
-mosaicplot(pdm_cluster, main = "PDM类型与聚类关联", color = TRUE)
-
-dev.off()
-
-# 打印聚类大小
-print("聚类大小:")
-print(table(kprototypes_result$cluster))
-
-# 计算并打印聚类特征
-cluster_profiles <- dmpc_data_for_means %>%
-  group_by(cluster) %>%
-  summarise(across(all_of(c(numerical_vars, ordinal_vars)), 
-                  list(mean = ~mean(., na.rm = TRUE),
-                       sd = ~sd(., na.rm = TRUE))))
-
-print("\n聚类特征:")
-print(cluster_profiles)
-
-# 分析PDM_Type与聚类的关联
-chisq <- chisq.test(pdm_cluster)
-print("\nPDM类型与聚类的卡方检验:")
-print(chisq)
-```
-
-
-```{r}
-# 加载必要的库
-library(tidyverse)
-library(gridExtra)
-
-# 创建直接使用ggplot2的可视化
-
-# 1. 聚类中心比较直观图 - 条形图形式
-centers_data <- dmpc_data %>%
-  select(all_of(c(ordinal_vars)), cluster) %>%
-  group_by(cluster) %>%
-  summarise(across(everything(), ~mean(as.numeric(.), na.rm = TRUE))) %>%
-  pivot_longer(-cluster, names_to = "variable", values_to = "value")
-
-centers_plot <- ggplot(centers_data, aes(x = variable, y = value, fill = factor(cluster))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_brewer(palette = "Set1", name = "聚类") +
-  labs(title = "聚类中心比较",
-       x = "变量",
-       y = "平均值") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 8))
-
-# 2. 聚类差异图 - 计算差值
-diff_data <- centers_data %>%
-  pivot_wider(names_from = cluster, values_from = value) %>%
-  mutate(diff = `1` - `2`) %>%
-  arrange(desc(abs(diff)))
-
-diff_plot <- ggplot(diff_data, aes(x = reorder(variable, diff), y = diff, fill = diff > 0)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = c("firebrick", "steelblue"), 
-                   labels = c("聚类2更高", "聚类1更高"),
-                   name = "差异方向") +
-  coord_flip() +
-  labs(title = "聚类之间的决策特征差异",
-       x = "变量",
-       y = "聚类1 - 聚类2 (差异)") +
-  theme_minimal()
-
-# 3. PDM与聚类关联图
-pdm_data <- data.frame(
-  PDM_Type = rep(rownames(pdm_cluster), times = ncol(pdm_cluster)),
-  Cluster = rep(1:ncol(pdm_cluster), each = nrow(pdm_cluster)),
-  Count = as.vector(pdm_cluster)
-)
-
-pdm_plot <- ggplot(pdm_data, aes(x = PDM_Type, y = Count, fill = factor(Cluster))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_brewer(palette = "Set1", name = "聚类") +
-  labs(title = "项目交付方法(PDM)与聚类关联",
-       x = "项目交付方法",
-       y = "数量") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# 保存可视化
-pdf("BOAT2_KPrototypes_Simple_Visualizations.pdf", width = 12, height = 10)
-print(centers_plot)
-print(diff_plot)
-print(pdm_plot)
-dev.off()
-
-# 打印最重要的变量差异，便于解释聚类
-print("两个聚类之间的主要差异 (按差异绝对值排序):")
-print(diff_data[,c("variable", "diff")])
-```
-
-
-
-
-```{r}
-# 加载必要的库
-library(tidyverse)
-library(clustMixType)
-
-# 读取数据
-boat_data <- read.csv("BOAT2_Data.csv")
-
-# 移除员工数为3700的异常值
-boat_data_filtered <- boat_data %>%
-  filter(Org_Structure_Employees != 3700)
-
-# 创建合并变量
-dmpc_data <- boat_data_filtered %>%
-  mutate(
-    Distribution_Centralization = (Distribution_Centralization1 + Distribution_Centralization2) / 2,
-    Distribution_Formalization = (Distribution_Formalization1 + Distribution_Formalization2) / 2,
-    Style_Participation = (Style_Participation1 + Style_Participation2) / 2,
-    Style_Organicity = (Style_Organicity1 + Style_Organicity2) / 2,
-    Style_Coercion = (Style_Coercion1 + Style_Coercion2) / 2
-  )
-
-# 定义数值型和有序型变量
-numerical_vars <- c(
-  "Org_Structure_Employees",
-  "Org_Structure_Locations",
-  "Org_Structure_Depts",
-  "Org_Structure_Layers"
-)
-
-ordinal_vars <- c(
-  "Distribution_Centralization", 
-  "Distribution_Formalization",
-  "Style_Technocracy", 
-  "Style_Participation", 
-  "Style_Organicity", 
-  "Style_Coercion",
-  "Culture_Command", 
-  "Culture_Symbolic", 
-  "Culture_Rationale", 
-  "Culture_Generative", 
-  "Culture_Transactive",
-  "Flexibility_openness", 
-  "Flexibility_Recursiveness",
-  "Risk",
-  "Environment_Growth", 
-  "Environment_Hostile", 
-  "Environment_Stable"
-)
-
-# 准备聚类数据
-cluster_data <- dmpc_data %>%
-  select(all_of(c(numerical_vars, ordinal_vars)))
-
-# 处理缺失值
-cluster_data <- cluster_data %>%
-  mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
-
-# 创建用于kprototypes的数据集
-cluster_data_mixed <- cluster_data
-cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
-                                         function(x) ordered(round(x), levels = 1:5))
-
-# 测试不同的k值（比如从2到6）
-k_values <- 2:6
-results <- list()
-wss <- numeric(length(k_values))
-
-# 计算不同k值的WSS（Within Sum of Squares）
-set.seed(123)  # 设置随机种子确保结果可重现
-for(i in seq_along(k_values)) {
-  k <- k_values[i]
-  kproto_result <- kproto(cluster_data_mixed, k = k)
-  wss[i] <- kproto_result$tot.withinss
-  results[[i]] <- kproto_result
-}
-
-# 创建肘部图
-elbow_data <- data.frame(k = k_values, wss = wss)
-elbow_plot <- ggplot(elbow_data, aes(x = k, y = wss)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "K-Prototypes Elbow Plot",
-       x = "Number of Clusters (k)",
-       y = "Total Within Sum of Squares") +
-  theme_minimal()
-
-# 显示图形
-print(elbow_plot)
-
-# 计算轮廓系数
-library(cluster)
-silhouette_scores <- numeric(length(k_values))
-
-for(i in seq_along(k_values)) {
-  k <- k_values[i]
-  clusters <- results[[i]]$cluster
-  dist_matrix <- daisy(cluster_data_mixed, metric = "gower")
-  sil <- silhouette(clusters, dist_matrix)
-  silhouette_scores[i] <- mean(sil[,3])
-}
-
-# 创建轮廓系数图
-silhouette_data <- data.frame(k = k_values, score = silhouette_scores)
-silhouette_plot <- ggplot(silhouette_data, aes(x = k, y = score)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Silhouette Score by k",
-       x = "Number of Clusters (k)",
-       y = "Average Silhouette Score") +
-  theme_minimal()
-
-# 显示图形
-print(silhouette_plot)
-
-# 打印最佳k值
-cat("Based on silhouette score, optimal k =", k_values[which.max(silhouette_scores)])
-```
-
-
-```{r}
-# 加载必要的库
-library(tidyverse)
-library(clustMixType)
-library(gridExtra)
-library(GGally)
-library(viridis)
-
-# 执行 k=2 和 k=3 的聚类
-set.seed(123)
+# Perform clustering with k=2 and k=3
 k2_result <- kproto(cluster_data_mixed, k = 2)
 k3_result <- kproto(cluster_data_mixed, k = 3)
 
-# 创建包含两种聚类结果的数据框
+# Create comparison dataset
 comparison_data <- cluster_data %>%
   mutate(
     cluster_k2 = factor(k2_result$cluster),
     cluster_k3 = factor(k3_result$cluster)
   )
 
-# 1. 创建数值变量的箱线图比较
+# Create visualizations for numerical variables
 numerical_plots <- list()
 for(var in numerical_vars) {
-  # K=2的箱线图
+  # K=2 boxplot
   p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
     geom_boxplot() +
     scale_fill_viridis_d() +
     labs(title = paste(var, "- K=2"), x = "Cluster", y = var) +
     theme_minimal()
   
-  # K=3的箱线图
+  # K=3 boxplot
   p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
     geom_boxplot() +
     scale_fill_viridis_d() +
@@ -957,170 +409,9 @@ for(var in numerical_vars) {
   numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
 }
 
-# 2. 创建聚类中心热图比较
-# K=2 聚类中心
-centers_k2 <- comparison_data %>%
-  group_by(cluster_k2) %>%
-  summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean)) %>%
-  pivot_longer(-cluster_k2, names_to = "variable", values_to = "value") %>%
-  mutate(k = "K=2")
-
-# K=3 聚类中心
-centers_k3 <- comparison_data %>%
-  group_by(cluster_k3) %>%
-  summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean)) %>%
-  pivot_longer(-cluster_k3, names_to = "variable", values_to = "value") %>%
-  mutate(k = "K=3")
-
-# 合并热图数据
-centers_k2$cluster <- as.character(centers_k2$cluster_k2)
-centers_k3$cluster <- as.character(centers_k3$cluster_k3)
-all_centers <- bind_rows(centers_k2, centers_k3)
-
-# 创建热图
-heatmap_plot <- ggplot(all_centers, 
-                      aes(x = variable, y = paste(k, "Cluster", cluster), fill = value)) +
-  geom_tile() +
-  scale_fill_viridis() +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "Cluster Centers Comparison (K=2 vs K=3)",
-       x = "Variables",
-       y = "Clusters")
-
-# 3. 计算并比较轮廓系数
-dist_matrix <- daisy(cluster_data_mixed, metric = "gower")
-sil_k2 <- silhouette(k2_result$cluster, dist_matrix)
-sil_k3 <- silhouette(k3_result$cluster, dist_matrix)
-
-# 创建轮廓图比较
-par(mfrow = c(1,2))
-plot(sil_k2, main = "Silhouette Plot - K=2")
-plot(sil_k3, main = "Silhouette Plot - K=3")
-
-# 4. 保存所有可视化结果
-pdf("K2_vs_K3_Comparison.pdf", width = 15, height = 12)
-
-# 打印数值变量箱线图
-for(plot in numerical_plots) {
-  grid.arrange(plot)
-}
-
-# 打印热图
-print(heatmap_plot)
-
-# 打印轮廓图
-par(mfrow = c(1,2))
-plot(sil_k2, main = "Silhouette Plot - K=2")
-plot(sil_k3, main = "Silhouette Plot - K=3")
-
-dev.off()
-
-# 5. 打印统计摘要
-cat("\nSilhouette Summary:\n")
-cat("K=2 average silhouette width:", mean(sil_k2[,3]), "\n")
-cat("K=3 average silhouette width:", mean(sil_k3[,3]), "\n")
-
-# 打印聚类大小
-cat("\nCluster Sizes:\n")
-cat("K=2:", table(k2_result$cluster), "\n")
-cat("K=3:", table(k3_result$cluster), "\n")
-```
-
-
-```{r}
-# 加载必要的库
-library(tidyverse)
-library(gridExtra)
-library(viridis)
-
-# 为Likert Scale数据创建可视化
-# 1. 创建分组箱线图
-likert_plots <- list()
-
-for(var in ordinal_vars) {
-  # K=2的箱线图
-  p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
-    geom_boxplot() +
-    scale_fill_viridis_d(name = "Cluster") +
-    labs(title = paste(var, "- K=2"), x = "Cluster", y = "Score") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 0))
-  
-  # K=3的箱线图
-  p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
-    geom_boxplot() +
-    scale_fill_viridis_d(name = "Cluster") +
-    labs(title = paste(var, "- K=3"), x = "Cluster", y = "Score") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 0))
-  
-  likert_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
-}
-
-# 2. 创建雷达图比较
-# 准备雷达图数据
-radar_data_k2 <- comparison_data %>%
-  group_by(cluster_k2) %>%
-  summarise(across(all_of(ordinal_vars), mean)) %>%
-  pivot_longer(-cluster_k2, names_to = "variable", values_to = "value")
-
-radar_data_k3 <- comparison_data %>%
-  group_by(cluster_k3) %>%
-  summarise(across(all_of(ordinal_vars), mean)) %>%
-  pivot_longer(-cluster_k3, names_to = "variable", values_to = "value")
-
-# 创建雷达图
-radar_plot_k2 <- ggplot(radar_data_k2, 
-                       aes(x = variable, y = value, group = cluster_k2, 
-                           color = factor(cluster_k2))) +
-  geom_line() +
-  geom_point() +
-  coord_polar() +
-  scale_color_viridis_d(name = "Cluster") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45),
-        legend.position = "bottom") +
-  labs(title = "Radar Plot - K=2")
-
-radar_plot_k3 <- ggplot(radar_data_k3, 
-                       aes(x = variable, y = value, group = cluster_k3, 
-                           color = factor(cluster_k3))) +
-  geom_line() +
-  geom_point() +
-  coord_polar() +
-  scale_color_viridis_d(name = "Cluster") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45),
-        legend.position = "bottom") +
-  labs(title = "Radar Plot - K=3")
-
-# 3. 创建小提琴图比较
-violin_plots <- list()
-
-for(var in ordinal_vars) {
-  # K=2的小提琴图
-  p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
-    geom_violin(alpha = 0.7) +
-    geom_boxplot(width = 0.1, fill = "white") +
-    scale_fill_viridis_d(name = "Cluster") +
-    labs(title = paste(var, "- K=2"), x = "Cluster", y = "Score") +
-    theme_minimal()
-  
-  # K=3的小提琴图
-  p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
-    geom_violin(alpha = 0.7) +
-    geom_boxplot(width = 0.1, fill = "white") +
-    scale_fill_viridis_d(name = "Cluster") +
-    labs(title = paste(var, "- K=3"), x = "Cluster", y = "Score") +
-    theme_minimal()
-  
-  violin_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
-}
-
-# 4. 创建聚类特征对比热图
+# Create cluster characteristics heatmap
 cluster_characteristics <- bind_rows(
-  # K=2 特征
+  # K=2 characteristics
   comparison_data %>%
     group_by(cluster_k2) %>%
     summarise(across(all_of(ordinal_vars), mean)) %>%
@@ -1128,7 +419,7 @@ cluster_characteristics <- bind_rows(
     mutate(k = "K=2", cluster = as.character(cluster_k2)) %>%
     select(-cluster_k2),
   
-  # K=3 特征
+  # K=3 characteristics
   comparison_data %>%
     group_by(cluster_k3) %>%
     summarise(across(all_of(ordinal_vars), mean)) %>%
@@ -1137,6 +428,7 @@ cluster_characteristics <- bind_rows(
     select(-cluster_k3)
 )
 
+# Create heatmap
 characteristics_heatmap <- ggplot(cluster_characteristics, 
                                 aes(x = variable, y = paste(k, "Cluster", cluster), 
                                     fill = value)) +
@@ -1144,75 +436,50 @@ characteristics_heatmap <- ggplot(cluster_characteristics,
   scale_fill_viridis() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "Likert Scale Variables - Cluster Characteristics",
+  labs(title = "Cluster Characteristics Heatmap",
        x = "Variables",
        y = "Clusters")
 
-# 保存所有可视化
-pdf("Likert_Scale_Comparison_K2_K3.pdf", width = 15, height = 12)
+# Save visualizations
+pdf("Cluster_Analysis_Visualizations.pdf", width = 15, height = 12)
 
-# 打印箱线图
-for(plot in likert_plots) {
+# Print numerical variable plots
+for(plot in numerical_plots) {
   grid.arrange(plot)
 }
 
-# 打印雷达图
-grid.arrange(radar_plot_k2, radar_plot_k3, ncol = 2)
-
-# 打印小提琴图
-for(plot in violin_plots) {
-  grid.arrange(plot)
-}
-
-# 打印热图
+# Print heatmap
 print(characteristics_heatmap)
 
+# Print silhouette plots
+par(mfrow = c(1,2))
+plot(silhouette(k2_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "Silhouette Plot - K=2")
+plot(silhouette(k3_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+     main = "Silhouette Plot - K=3")
+
 dev.off()
-
-# 5. 计算并打印每个Likert Scale变量的聚类间差异统计
-cat("\nLikert Scale Variables - Cluster Differences:\n")
-
-# K=2的差异分析
-cat("\nK=2 Cluster Differences:\n")
-for(var in ordinal_vars) {
-  test_result <- kruskal.test(as.formula(paste(var, "~ cluster_k2")), data = comparison_data)
-  cat(sprintf("%s: p-value = %.4f\n", var, test_result$p.value))
-}
-
-# K=3的差异分析
-cat("\nK=3 Cluster Differences:\n")
-for(var in ordinal_vars) {
-  test_result <- kruskal.test(as.formula(paste(var, "~ cluster_k3")), data = comparison_data)
-  cat(sprintf("%s: p-value = %.4f\n", var, test_result$p.value))
-}
 ```
 
-
+## Dimension Reduction Analysis
+This section performs PCA and UMAP analysis to visualize the clustering results in lower dimensions.
 
 ```{r}
-# 加载必要的库
-library(tidyverse)
-library(factoextra)
-library(ggrepel)
-library(gridExtra)
-library(scales)
-
-# 1. PCA分析
-# 准备数据（包括所有数值型和序数型变量）
+# Prepare data for PCA
 pca_data <- comparison_data %>%
   select(all_of(c(numerical_vars, ordinal_vars)))
 
-# 进行PCA
+# Perform PCA
 pca_result <- prcomp(pca_data, scale. = TRUE)
 
-# 创建包含聚类信息的数据框
+# Create PCA coordinates with cluster information
 pca_coords <- as.data.frame(pca_result$x) %>%
   bind_cols(
     cluster_k2 = factor(comparison_data$cluster_k2),
     cluster_k3 = factor(comparison_data$cluster_k3)
   )
 
-# 创建K=2的PCA图
+# Create PCA plots
 pca_plot_k2 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k2)) +
   geom_point(size = 3, alpha = 0.6) +
   scale_color_viridis_d() +
@@ -1221,7 +488,6 @@ pca_plot_k2 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k2)) +
   theme_minimal() +
   stat_ellipse(level = 0.95)
 
-# 创建K=3的PCA图
 pca_plot_k3 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k3)) +
   geom_point(size = 3, alpha = 0.6) +
   scale_color_viridis_d() +
@@ -1230,39 +496,14 @@ pca_plot_k3 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k3)) +
   theme_minimal() +
   stat_ellipse(level = 0.95)
 
-# 2. 变量对PCA的贡献可视化
-var_contrib <- get_pca_var(pca_result)
-var_plot <- fviz_pca_var(pca_result, 
-                         col.var = "contrib",
-                         gradient.cols = viridis(10),
-                         repel = TRUE)
-
-# 3. 修改后的双标图 (Biplot)
-biplot_k2 <- fviz_pca_biplot(pca_result,
-                            label = "var",
-                            habillage = factor(pca_coords$cluster_k2),
-                            addEllipses = TRUE,
-                            ellipse.level = 0.95,
-                            title = "Biplot - K=2",
-                            repel = TRUE)
-
-biplot_k3 <- fviz_pca_biplot(pca_result,
-                            label = "var",
-                            habillage = factor(pca_coords$cluster_k3),
-                            addEllipses = TRUE,
-                            ellipse.level = 0.95,
-                            title = "Biplot - K=3",
-                            repel = TRUE)
-
-# 4. 创建UMAP降维可视化
-library(umap)
+# Create UMAP visualization
 umap_result <- umap(pca_data)
 umap_coords <- as.data.frame(umap_result$layout)
 colnames(umap_coords) <- c("UMAP1", "UMAP2")
 umap_coords$cluster_k2 <- factor(comparison_data$cluster_k2)
 umap_coords$cluster_k3 <- factor(comparison_data$cluster_k3)
 
-# UMAP图 - K=2
+# Create UMAP plots
 umap_plot_k2 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k2)) +
   geom_point(size = 3, alpha = 0.6) +
   scale_color_viridis_d() +
@@ -1270,7 +511,6 @@ umap_plot_k2 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k2
        color = "Cluster") +
   theme_minimal()
 
-# UMAP图 - K=3
 umap_plot_k3 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k3)) +
   geom_point(size = 3, alpha = 0.6) +
   scale_color_viridis_d() +
@@ -1278,7 +518,7 @@ umap_plot_k3 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k3
        color = "Cluster") +
   theme_minimal()
 
-# 5. 计算和可视化主成分解释的方差比例
+# Create scree plot
 variance_explained <- data.frame(
   PC = 1:length(pca_result$sdev),
   Variance = pca_result$sdev^2 / sum(pca_result$sdev^2)
@@ -1295,37 +535,28 @@ scree_plot <- ggplot(variance_explained, aes(x = PC, y = Variance)) +
        y = "Proportion of Variance Explained") +
   theme_minimal()
 
-# 保存所有可视化
+# Save dimension reduction visualizations
 pdf("Dimension_Reduction_Analysis.pdf", width = 15, height = 12)
 
-# PCA plots
+# Print PCA plots
 grid.arrange(pca_plot_k2, pca_plot_k3, ncol = 2)
 
-# Biplot
-print(biplot_k2)
-print(biplot_k3)
-
-# Variable contribution plot
-print(var_plot)
-
-# Scree plot
-print(scree_plot)
-
-# UMAP plots
+# Print UMAP plots
 grid.arrange(umap_plot_k2, umap_plot_k3, ncol = 2)
+
+# Print scree plot
+print(scree_plot)
 
 dev.off()
 
-# 打印PCA摘要信息
+# Print PCA summary
 print("PCA Summary:")
 print(summary(pca_result))
 
-# 打印前几个主成分的loadings
+# Print top variable loadings
 print("\nTop variable loadings for first 3 PCs:")
 loadings <- pca_result$rotation[,1:3]
 loadings_df <- as.data.frame(loadings)
 loadings_df$Variable <- rownames(loadings_df)
 print(loadings_df %>% arrange(desc(abs(PC1))))
 ```
-
-
