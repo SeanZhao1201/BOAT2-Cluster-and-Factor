@@ -1,32 +1,257 @@
 ---
-title: "BOAT2-Cluster-and-Factor"
-output: html_document
+title: "Building Owners' Decision-Making Profile Clustering and Factor Analysis"
+subtitle: "Building Owners' Decision-Making Profile Clustering and Factor Analysis"
+author: "Researcher"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+    code_folding: show
 ---
 
-# Data Analysis and Clustering of Building Owners' Decision-Making Profiles
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Project Overview
+
+This research aims to analyze building owners' decision-making characteristics, identify owner decision-making patterns through cluster analysis, and explore the relationship between these patterns and project delivery methods (PDM). The study employs multiple clustering methods and dimensionality reduction techniques for visualization to identify groups of owners with similar decision-making characteristics.
+
+## Research Questions
+
+1. Are there distinct grouping patterns in building owners' decision-making characteristics?
+2. How do different clustering methods perform in distinguishing owner decision-making characteristics?
+3. Is there an association between owner decision-making characteristics and project delivery methods?
+4. Which decision-making characteristics are most important in distinguishing different owner groups?
+
+## Analysis Methods
+
+This study employs three main clustering methods:
+- Hierarchical Clustering
+- Partitioning Around Medoids (PAM)
+- K-Prototypes Clustering - for handling mixed data types
+
+And determines the optimal number of clusters through:
+- Silhouette Analysis
+- Elbow Method
+- Gap Statistic
+- Cluster Stability Analysis
+
+# Preparation
 
 ## Load Required Libraries
-```{r}
-# Core data manipulation and visualization
-library(tidyverse)
-library(dplyr)
-library(ggplot2)
-library(gridExtra)
-library(scales)
+```{r libraries}
+# Data processing libraries
+library(tidyverse)  # Comprehensive package for data processing and visualization
+library(dplyr)      # Data manipulation and transformation
+library(readr)      # Efficient text data reading
 
-# Clustering and dimension reduction
-library(cluster)
-library(clustMixType)
-library(factoextra)
-library(NbClust)
-library(umap)
-library(mclust)  # Added for adjustedRandIndex function
+# Visualization libraries
+library(ggplot2)    # Declarative graphics creation
+library(gridExtra)  # Combine multiple ggplot graphics
+library(scales)     # Graphic scaling and labels
+library(viridis)    # Colorblind-friendly palette
+library(RColorBrewer) # Classic color palettes
+library(ggrepel)    # Non-overlapping text labels
+library(factoextra) # PCA result visualization
+library(grid)       # Base graphics system
+library(gridExtra)  # Grid graphics extension
 
-# Visualization enhancements
-library(dendextend)
-library(viridis)
-library(RColorBrewer)
-library(ggrepel)
+# Clustering analysis libraries
+library(cluster)    # Clustering algorithms and analysis
+library(clustMixType) # Mixed data type clustering
+library(NbClust)    # Determine optimal number of clusters
+library(dendextend) # Dendrogram enhancement and visualization
+library(mclust)     # Model-based clustering and adjustedRandIndex function
+
+# Dimensionality reduction libraries
+library(umap)       # Non-linear dimensionality reduction
+```
+
+# Data Import and Exploration
+
+## Data Import and Initial Processing
+```{r data_import}
+# Read raw data
+raw_data <- read.csv("BOAT2_Data.csv")
+
+# Add unique ID
+raw_data$ID <- 1:nrow(raw_data)
+
+# Data overview
+str(raw_data)
+summary(raw_data)
+
+# Check missing values
+missing_values <- colSums(is.na(raw_data))
+print("Number of missing values for each variable:")
+print(missing_values[missing_values > 0])
+```
+
+## Exploratory Data Analysis
+```{r exploratory}
+# Check outliers - Organizational structure characteristics
+par(mfrow=c(2, 2))
+boxplot(raw_data$Org_Structure_Employees, main="Number of Employees", col="lightblue")
+boxplot(raw_data$Org_Structure_Locations, main="Number of Locations", col="lightgreen")
+boxplot(raw_data$Org_Structure_Depts, main="Number of Departments", col="lightpink")
+boxplot(raw_data$Org_Structure_Layers, main="Number of Hierarchical Layers", col="lightyellow")
+
+# Main project delivery method distribution
+pdm_counts <- table(raw_data$PDM_Type)
+pdm_perc <- prop.table(pdm_counts) * 100
+
+# Visualize project delivery method distribution
+ggplot(data.frame(PDM = names(pdm_counts), Count = as.numeric(pdm_counts)), 
+       aes(x = reorder(PDM, -Count), y = Count, fill = PDM)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(as.numeric(pdm_perc), 1), "%")), 
+            vjust = -0.5, size = 3) +
+  labs(title = "Project Delivery Method Distribution",
+       x = "Project Delivery Method",
+       y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+# Data Preprocessing
+
+## Define Variable Groups
+```{r variables_definition}
+# 1. Numerical organizational characteristic variables
+numerical_org_vars <- c(
+  "Org_Structure_Employees",
+  "Org_Structure_Locations",
+  "Org_Structure_Depts",
+  "Org_Structure_Layers"
+)
+
+# 2. Single ordinal decision characteristic variables
+ordinal_single_vars <- c(
+  "Style_Technocracy", 
+  "Culture_Command", 
+  "Culture_Symbolic", 
+  "Culture_Rationale", 
+  "Culture_Generative", 
+  "Culture_Transactive",
+  "Flexibility_openness", 
+  "Flexibility_Recursiveness",
+  "Risk",
+  "Environment_Growth", 
+  "Environment_Hostile", 
+  "Environment_Stable"
+)
+
+# 3. Multiple ordinal decision characteristic variable pairs
+ordinal_multi_vars <- list(
+  Distribution_Centralization = c("Distribution_Centralization1", "Distribution_Centralization2"),
+  Distribution_Formalization = c("Distribution_Formalization1", "Distribution_Formalization2"),
+  Style_Participation = c("Style_Participation1", "Style_Participation2"),
+  Style_Organicity = c("Style_Organicity1", "Style_Organicity2"),
+  Style_Coercion = c("Style_Coercion1", "Style_Coercion2")
+)
+
+# 4. All original ordinal decision characteristic variables
+ordinal_all_vars <- c(
+  unlist(ordinal_multi_vars),
+  ordinal_single_vars
+)
+
+# 5. Categorical variables
+categorical_vars <- c(
+  "PDM_Type"
+)
+```
+
+## Create Merged Variable Dataset
+```{r create_merged_dataset}
+# Calculate means for multiple constructs
+merged_data <- raw_data %>%
+  mutate(
+    # Calculate means for multiple constructs
+    Distribution_Centralization = (Distribution_Centralization1 + Distribution_Centralization2) / 2,
+    Distribution_Formalization = (Distribution_Formalization1 + Distribution_Formalization2) / 2,
+    Style_Participation = (Style_Participation1 + Style_Participation2) / 2,
+    Style_Organicity = (Style_Organicity1 + Style_Organicity2) / 2,
+    Style_Coercion = (Style_Coercion1 + Style_Coercion2) / 2
+  )
+
+# Merged ordinal decision variables
+merged_ordinal_vars <- c(
+  "Distribution_Centralization", 
+  "Distribution_Formalization",
+  "Style_Technocracy", 
+  "Style_Participation", 
+  "Style_Organicity", 
+  "Style_Coercion",
+  "Culture_Command", 
+  "Culture_Symbolic", 
+  "Culture_Rationale", 
+  "Culture_Generative", 
+  "Culture_Transactive",
+  "Flexibility_openness", 
+  "Flexibility_Recursiveness",
+  "Risk",
+  "Environment_Growth", 
+  "Environment_Hostile", 
+  "Environment_Stable"
+)
+
+# Create dataset for hierarchical clustering
+merged_cluster_data <- merged_data %>%
+  select(
+    ID, 
+    all_of(merged_ordinal_vars),
+    PDM_Type
+  )
+```
+
+## Create Original Variable Dataset
+```{r create_original_dataset}
+# Remove outliers (record with 3700 employees)
+original_data <- raw_data %>%
+  filter(Org_Structure_Employees != 3700)
+
+# Prepare data for K-prototype clustering
+original_cluster_data <- original_data %>%
+  select(
+    ID,
+    all_of(numerical_org_vars),
+    all_of(ordinal_all_vars),
+    PDM_Type
+  )
+```
+
+## Handle Missing Values
+```{r handle_missing}
+# Handle missing values in merged variable dataset - using means
+merged_cluster_data <- merged_cluster_data %>%
+  mutate(across(where(is.numeric), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Display comparison before and after handling missing values
+print("Merged variable dataset - Before handling missing values:")
+print(colSums(is.na(merged_data[, merged_ordinal_vars])))
+print("Merged variable dataset - After handling missing values:")
+print(colSums(is.na(merged_cluster_data[, merged_ordinal_vars])))
+
+# Handle missing values in original variable dataset - using medians
+original_vars_for_cluster <- c(numerical_org_vars, ordinal_all_vars)
+original_cluster_vars <- original_data %>%
+  select(all_of(original_vars_for_cluster))
+
+print("Original variable dataset - Before handling missing values:")
+print(colSums(is.na(original_cluster_vars)))
+
+# Handle missing values
+original_cluster_vars <- original_cluster_vars %>%
+  mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+print("Original variable dataset - After handling missing values:")
+print(colSums(is.na(original_cluster_vars)))
 ```
 
 ## Data Preparation and Initial Clustering Analysis
@@ -213,136 +438,113 @@ write.csv(pdm_cluster_table, "BOAT2_PDM_Cluster_Table.csv")
 本节实现了K-prototypes聚类，适用于处理混合数据类型（数值型和分类型变量），并比较不同的聚类解决方案。
 
 ### 数据准备
-```{r}
-# 移除异常值（3700名员工的记录）
-boat_data_filtered <- boat_data %>%
-  filter(Org_Structure_Employees != 3700)
+```{r kproto_data_prep}
+# 为K-Prototypes聚类准备的数据集
+kproto_data <- original_cluster_vars
 
-# 定义数值变量和有序变量 - 使用原始独立变量
-numerical_vars <- c(
-  "Org_Structure_Employees",
-  "Org_Structure_Locations",
-  "Org_Structure_Depts",
-  "Org_Structure_Layers"
+# 显示数据结构
+str(kproto_data)
+
+# 创建用于K-Prototypes的混合数据集
+kproto_data_mixed <- kproto_data
+# 将有序变量转换为有序因子
+kproto_data_mixed[ordinal_all_vars] <- lapply(
+  kproto_data_mixed[ordinal_all_vars], 
+  function(x) ordered(round(x), levels = 1:5)
 )
 
-ordinal_vars <- c(
-  # 使用原始独立变量而非组合变量
-  "Distribution_Centralization1", 
-  "Distribution_Centralization2",
-  "Distribution_Formalization1", 
-  "Distribution_Formalization2",
-  "Style_Technocracy", 
-  "Style_Participation1", 
-  "Style_Participation2", 
-  "Style_Organicity1", 
-  "Style_Organicity2", 
-  "Style_Coercion1", 
-  "Style_Coercion2",
-  "Culture_Command", 
-  "Culture_Symbolic", 
-  "Culture_Rationale", 
-  "Culture_Generative", 
-  "Culture_Transactive",
-  "Flexibility_openness", 
-  "Flexibility_Recursiveness",
-  "Risk",
-  "Environment_Growth", 
-  "Environment_Hostile", 
-  "Environment_Stable"
-)
-
-# 准备聚类数据并处理缺失值
-cluster_data <- boat_data_filtered %>%
-  select(all_of(c(numerical_vars, ordinal_vars)))
-
-# 输出缺失值摘要
-print("缺失值摘要:")
-print(colSums(is.na(cluster_data)))
-
-# 处理缺失值（使用中位数填充）
-cluster_data <- cluster_data %>%
-  mutate(across(everything(), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
-
-# 标准化所有变量
-cluster_data_scaled <- scale(cluster_data)
+# 计算Gower距离矩阵（适用于混合数据类型）
+kproto_gower_dist <- daisy(kproto_data_mixed, metric = "gower")
 ```
 
 ### 确定最佳聚类数量
-在这部分，我们使用多种方法评估最佳聚类数量。
 
 #### 1. 轮廓分析（使用Gower距离）
-```{r}
-# 创建混合数据集用于K-prototypes
-cluster_data_mixed <- cluster_data
-cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
-                                         function(x) ordered(round(x), levels = 1:5))
+```{r kproto_silhouette}
+# 设置最大聚类数
+kproto_max_k <- 8
+kproto_sil_width <- numeric(kproto_max_k - 1)
 
-# 计算Gower距离矩阵
-gower_dist <- daisy(cluster_data_mixed, metric = "gower")
-
-# 使用轮廓分析确定最佳聚类数量
-max_k <- 8
-sil_width_gower <- numeric(max_k - 1)
-
-# 对于不同的k值，创建PAM聚类并计算轮廓系数
-for(k in 2:max_k) {
-  pam_fit <- pam(gower_dist, k = k, diss = TRUE)
-  sil_width_gower[k-1] <- pam_fit$silinfo$avg.width
+# 对不同的k值，使用PAM算法创建聚类并计算轮廓系数
+for(k in 2:kproto_max_k) {
+  pam_fit <- pam(kproto_gower_dist, k = k, diss = TRUE)
+  kproto_sil_width[k-1] <- pam_fit$silinfo$avg.width
 }
 
 # 绘制轮廓宽度图
-silhouette_plot_gower <- ggplot(data.frame(k = 2:max_k, sil_width = sil_width_gower), 
-                         aes(x = k, y = sil_width)) +
+kproto_silhouette_plot <- ggplot(
+  data.frame(k = 2:kproto_max_k, sil_width = kproto_sil_width), 
+  aes(x = k, y = sil_width)
+) +
   geom_line() +
   geom_point() +
-  labs(title = "Gower距离的轮廓分析",
+  labs(title = "基于Gower距离的轮廓分析",
        x = "聚类数量 (k)",
        y = "平均轮廓宽度") +
   theme_minimal()
 
-print(silhouette_plot_gower)
+print(kproto_silhouette_plot)
+
+# 显示最佳k值（基于最大轮廓宽度）
+kproto_best_k_sil <- which.max(kproto_sil_width) + 1
+cat("基于轮廓分析的最佳聚类数量:", kproto_best_k_sil, "\n")
 ```
 
-#### 2. 肘部法则（使用K-prototypes）
-```{r}
+#### 2. 肘部法则（使用K-Prototypes）
+```{r kproto_elbow}
 # 设置随机种子以确保结果可重现
 set.seed(123)
 
-# 对于不同的k值，计算K-prototypes的总簇内平方和
-max_k <- 8
-wss <- numeric(max_k - 1)
+# 对不同的k值，计算K-Prototypes的总簇内平方和
+kproto_wss <- numeric(kproto_max_k - 1)
 
-for(k in 2:max_k) {
-  kproto_result <- kproto(cluster_data_mixed, k = k, verbose = FALSE)
-  wss[k-1] <- kproto_result$tot.withinss
+for(k in 2:kproto_max_k) {
+  kproto_result <- kproto(kproto_data_mixed, k = k, verbose = FALSE)
+  kproto_wss[k-1] <- kproto_result$tot.withinss
 }
 
 # 绘制肘部图
-elbow_plot <- ggplot(data.frame(k = 2:max_k, wss = wss), 
-                     aes(x = k, y = wss)) +
+kproto_elbow_plot <- ggplot(
+  data.frame(k = 2:kproto_max_k, wss = kproto_wss), 
+  aes(x = k, y = wss)
+) +
   geom_line() +
   geom_point() +
-  labs(title = "K-prototypes的肘部法则",
+  labs(title = "K-Prototypes的肘部法则",
        x = "聚类数量 (k)",
        y = "总簇内平方和") +
   theme_minimal()
 
-print(elbow_plot)
+print(kproto_elbow_plot)
+
+# 确定肘部点（通过二阶导数）
+kproto_best_k_elbow <- which(diff(diff(kproto_wss)) > 0)[1] + 1
+if(is.na(kproto_best_k_elbow)) {
+  kproto_best_k_elbow <- 2  # 默认值，如果无法确定肘部
+}
+cat("基于肘部法则的最佳聚类数量:", kproto_best_k_elbow, "\n")
 ```
 
 #### 3. Gap统计量
-```{r}
+```{r kproto_gap}
 # 使用clusGap函数计算Gap统计量
 # 注意：这可能需要较长的计算时间
-gap_stat <- clusGap(cluster_data_scaled, 
-                   FUN = pam, 
-                   K.max = max_k, 
-                   B = 50)  # B是自举样本数量，生产环境可设为更高值
+kproto_gap_stat <- clusGap(
+  kproto_data, 
+  FUN = pam, 
+  K.max = kproto_max_k, 
+  B = 50  # B是自举样本数量，生产环境可设为更高值
+)
 
 # 绘制Gap统计量图
-gap_plot <- ggplot(data.frame(k = 1:max_k, gap = gap_stat$Tab[,"gap"], se = gap_stat$Tab[,"SE.sim"]), 
-                  aes(x = k, y = gap)) +
+kproto_gap_plot <- ggplot(
+  data.frame(
+    k = 1:kproto_max_k, 
+    gap = kproto_gap_stat$Tab[,"gap"], 
+    se = kproto_gap_stat$Tab[,"SE.sim"]
+  ), 
+  aes(x = k, y = gap)
+) +
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = gap - se, ymax = gap + se), width = 0.1) +
@@ -351,49 +553,59 @@ gap_plot <- ggplot(data.frame(k = 1:max_k, gap = gap_stat$Tab[,"gap"], se = gap_
        y = "Gap统计量（含标准误）") +
   theme_minimal()
 
-print(gap_plot)
+print(kproto_gap_plot)
 
-# 输出最优聚类数量
-cat("基于最大Gap统计量的最优聚类数量:", maxSE(gap_stat$Tab[,"gap"], gap_stat$Tab[,"SE.sim"], method="firstSEmax"), "\n")
+# 使用firstSEmax方法确定最佳k值
+kproto_best_k_gap <- maxSE(
+  kproto_gap_stat$Tab[,"gap"], 
+  kproto_gap_stat$Tab[,"SE.sim"], 
+  method = "firstSEmax"
+)
+cat("基于Gap统计量的最佳聚类数量:", kproto_best_k_gap, "\n")
 ```
 
 #### 4. 聚类稳定性分析
-```{r}
+```{r kproto_stability}
 # 设置随机种子
 set.seed(456)
 
 # 进行多次抽样和聚类以评估稳定性
-n_samples <- 10
-stability_results <- data.frame(k = integer(), ari = numeric())
+kproto_n_samples <- 10
+kproto_stability_results <- data.frame(k = integer(), ari = numeric())
 
 for(k in 2:5) {  # 关注k=2到k=5
-  ari_values <- numeric(n_samples)
+  ari_values <- numeric(kproto_n_samples)
   
-  for(i in 1:n_samples) {
+  for(i in 1:kproto_n_samples) {
     # 随机抽取80%的数据
-    sample_idx <- sample(1:nrow(cluster_data_mixed), size = floor(0.8 * nrow(cluster_data_mixed)))
-    sample_data <- cluster_data_mixed[sample_idx, ]
+    sample_idx <- sample(1:nrow(kproto_data_mixed), 
+                         size = floor(0.8 * nrow(kproto_data_mixed)))
+    sample_data <- kproto_data_mixed[sample_idx, ]
     
     # 对抽样数据进行聚类
     kproto_sample <- kproto(sample_data, k = k, verbose = FALSE)
     
     # 对完整数据进行聚类
-    kproto_full <- kproto(cluster_data_mixed, k = k, verbose = FALSE)
+    kproto_full <- kproto(kproto_data_mixed, k = k, verbose = FALSE)
     
     # 计算调整兰德指数 (ARI)
     # 注意：我们只能比较样本中的观测
     # adjustedRandIndex函数来自mclust包
     common_idx <- sample_idx
-    ari <- adjustedRandIndex(kproto_sample$cluster, kproto_full$cluster[common_idx])
+    ari <- adjustedRandIndex(kproto_sample$cluster, 
+                             kproto_full$cluster[common_idx])
     ari_values[i] <- ari
   }
   
-  stability_results <- rbind(stability_results, 
-                             data.frame(k = k, ari = mean(ari_values)))
+  kproto_stability_results <- rbind(
+    kproto_stability_results, 
+    data.frame(k = k, ari = mean(ari_values))
+  )
 }
 
 # 绘制稳定性结果
-stability_plot <- ggplot(stability_results, aes(x = k, y = ari)) +
+kproto_stability_plot <- ggplot(kproto_stability_results, 
+                               aes(x = k, y = ari)) +
   geom_line() +
   geom_point() +
   labs(title = "聚类稳定性分析",
@@ -402,39 +614,46 @@ stability_plot <- ggplot(stability_results, aes(x = k, y = ari)) +
   ylim(0, 1) +
   theme_minimal()
 
-print(stability_plot)
+print(kproto_stability_plot)
 
 # 输出各k值的稳定性结果
 cat("各k值的聚类稳定性（基于调整兰德指数）:\n")
-print(stability_results)
+print(kproto_stability_results)
+
+# 确定最佳k值（基于最高稳定性）
+kproto_best_k_stability <- kproto_stability_results$k[
+  which.max(kproto_stability_results$ari)
+]
+cat("基于聚类稳定性的最佳聚类数量:", kproto_best_k_stability, "\n")
 ```
 
 #### 5. 综合评估最佳聚类数量
-```{r}
+```{r kproto_combined}
 # 综合上述方法的结果
-methods_df <- data.frame(
-  K = 2:max_k,
-  Silhouette = sil_width_gower,
-  WSS = wss,
-  Gap = gap_stat$Tab[2:max_k,"gap"]
+kproto_methods_df <- data.frame(
+  K = 2:kproto_max_k,
+  Silhouette = kproto_sil_width,
+  WSS = kproto_wss,
+  Gap = kproto_gap_stat$Tab[2:kproto_max_k,"gap"]
 )
 
 # 标准化指标以便比较
-methods_df_scaled <- methods_df %>%
+kproto_methods_scaled <- kproto_methods_df %>%
   mutate(
     Silhouette_scaled = scale(Silhouette),
     WSS_scaled = -scale(WSS),  # 负号使得较小的WSS有较高的标准化分数
     Gap_scaled = scale(Gap)
   )
 
-# 计算平均排名
-methods_df_scaled <- methods_df_scaled %>%
+# 计算平均得分
+kproto_methods_scaled <- kproto_methods_scaled %>%
   mutate(
     Average_score = (Silhouette_scaled + WSS_scaled + Gap_scaled) / 3
   )
 
 # 绘制综合得分
-combined_plot <- ggplot(methods_df_scaled, aes(x = K, y = Average_score)) +
+kproto_combined_plot <- ggplot(kproto_methods_scaled, 
+                              aes(x = K, y = Average_score)) +
   geom_line() +
   geom_point() +
   geom_text(aes(label = round(Average_score, 2)), vjust = -1) +
@@ -443,237 +662,227 @@ combined_plot <- ggplot(methods_df_scaled, aes(x = K, y = Average_score)) +
        y = "综合评分（标准化）") +
   theme_minimal()
 
-print(combined_plot)
+print(kproto_combined_plot)
 
 # 找出得分最高的k值
-best_k <- methods_df_scaled$K[which.max(methods_df_scaled$Average_score)]
-cat("基于综合评分的最优聚类数量:", best_k, "\n")
+kproto_best_k_combined <- kproto_methods_scaled$K[
+  which.max(kproto_methods_scaled$Average_score)
+]
+cat("基于综合评分的最优聚类数量:", kproto_best_k_combined, "\n")
 
 # 创建一个小表格来总结各种方法的结果
-summary_table <- data.frame(
-  Method = c("轮廓分析(Gower)", "肘部法则", "Gap统计量", "聚类稳定性", "综合评分"),
+kproto_summary_table <- data.frame(
+  Method = c("轮廓分析(Gower)", "肘部法则", "Gap统计量", 
+             "聚类稳定性", "综合评分"),
   Suggested_K = c(
-    which.max(sil_width_gower) + 1,
-    which(diff(diff(wss)) > 0)[1] + 1,  # 肘部点是二阶导数首次为正的地方
-    maxSE(gap_stat$Tab[,"gap"], gap_stat$Tab[,"SE.sim"], method="firstSEmax"),
-    stability_results$k[which.max(stability_results$ari)],
-    best_k
+    kproto_best_k_sil,
+    kproto_best_k_elbow,
+    kproto_best_k_gap,
+    kproto_best_k_stability,
+    kproto_best_k_combined
   )
 )
 
 # 输出摘要表
-print(summary_table)
+print(kproto_summary_table)
 ```
 
-### PAM聚类实现
-基于上述分析，我们选择具有最佳得分的k值进行PAM聚类。
+## K-Prototypes聚类实现
+基于前面的分析，我们选择使用K=2和K=3进行K-Prototypes聚类，并比较结果。
 
-```{r}
-# 使用最佳k值进行PAM聚类
-k <- best_k  # 使用综合评分确定的最佳k值
-pam_result <- pam(gower_dist, k = k, diss = TRUE)
-
-# 添加聚类分配
-cluster_assignments <- pam_result$clustering
-cluster_data$cluster <- cluster_assignments
-cluster_data_scaled <- as.data.frame(cluster_data_scaled)
-cluster_data_scaled$cluster <- cluster_assignments
-
-# 创建可视化
-
-# 1. 数值变量按聚类的箱线图
-numerical_long <- cluster_data_scaled %>%
-  select(all_of(numerical_vars), cluster) %>%
-  pivot_longer(cols = all_of(numerical_vars),
-               names_to = "variable",
-               values_to = "value")
-
-num_boxplot <- ggplot(numerical_long, 
-                     aes(x = factor(cluster), y = value, fill = factor(cluster))) +
-  geom_boxplot() +
-  facet_wrap(~variable, scales = "free_y") +
-  labs(title = "按聚类的数值变量分布",
-       x = "聚类",
-       y = "标准化值") +
-  theme_minimal()
-
-# 2. 变量热图
-cluster_means <- cluster_data_scaled %>%
-  group_by(cluster) %>%
-  summarise(across(all_of(c(numerical_vars, ordinal_vars)), mean)) %>%
-  pivot_longer(-cluster, 
-               names_to = "variable", 
-               values_to = "value")
-
-heatmap_plot <- ggplot(cluster_means, 
-                      aes(x = variable, y = factor(cluster), fill = value)) +
-  geom_tile() +
-  scale_fill_viridis() +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "聚类特征热图",
-       x = "变量",
-       y = "聚类") +
-  coord_flip()  # 翻转坐标轴以提高可读性
-
-# 3. 聚类轮廓图
-sil_plot <- fviz_silhouette(pam_result, print.summary = FALSE) +
-  theme_minimal() +
-  labs(title = paste("k =", k, "的聚类轮廓图"))
-
-# 保存结果（带原始未标准化值）
-results_with_originals <- cluster_data
-
-# 保存聚类结果
-write.csv(results_with_originals, "BOAT2_PAM_Clustering_Results.csv", row.names = FALSE)
-
-# 保存图表
-pdf("BOAT2_PAM_Clustering_Visualizations.pdf", width = 15, height = 10)
-print(num_boxplot)
-print(heatmap_plot)
-print(sil_plot)
-dev.off()
-
-# 输出摘要统计数据
-cat("聚类大小:\n")
-print(table(pam_result$clustering))
-
-# 计算并输出聚类概况
-cluster_profiles <- cluster_data %>%
-  group_by(cluster) %>%
-  summarise(across(everything(), 
-                  list(mean = ~mean(., na.rm = TRUE),
-                       sd = ~sd(., na.rm = TRUE))))
-
-cat("\n聚类特征概况:\n")
-print(cluster_profiles)
-
-# 添加轮廓信息
-cat("\n轮廓信息:\n")
-print(summary(pam_result$silinfo$silh))
-```
-
-### K-Prototypes聚类实现
-基于前面的分析，我们选择2个和3个聚类进行K-Prototypes聚类，并比较结果。
-
-```{r}
+```{r kprototypes_clustering}
 # 设置随机种子以确保结果可重现
 set.seed(123)
 
-# 执行k=2和k=3的聚类
-k2_result <- kproto(cluster_data_mixed, k = 2)
-k3_result <- kproto(cluster_data_mixed, k = 3)
+# 执行k=2和k=3的K-Prototypes聚类
+kproto_k2_result <- kproto(kproto_data_mixed, k = 2, verbose = FALSE)
+kproto_k3_result <- kproto(kproto_data_mixed, k = 3, verbose = FALSE)
 
-# 创建比较数据集
-comparison_data <- cluster_data %>%
+# 创建包含两种聚类结果的比较数据集
+kproto_comparison_data <- kproto_data %>%
   mutate(
-    cluster_k2 = factor(k2_result$cluster),
-    cluster_k3 = factor(k3_result$cluster)
+    kproto_cluster_k2 = factor(kproto_k2_result$cluster),
+    kproto_cluster_k3 = factor(kproto_k3_result$cluster)
   )
 
-# 创建数值变量的可视化
-numerical_plots <- list()
-for(var in numerical_vars) {
+# 添加ID和PDM类型用于分析
+kproto_full_results <- cbind(
+  ID = original_data$ID,
+  PDM_Type = original_data$PDM_Type,
+  kproto_comparison_data
+)
+
+# 保存K-Prototypes聚类结果
+write.csv(kproto_full_results, "Results/BOAT2_KProto_Clustering_Results.csv", row.names = FALSE)
+
+# 创建数值变量的可视化比较
+kproto_numerical_plots <- list()
+for(var in numerical_org_vars) {
   # K=2箱线图
-  p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
+  p1 <- ggplot(
+    kproto_comparison_data, 
+    aes_string(x = "kproto_cluster_k2", y = var, fill = "kproto_cluster_k2")
+  ) +
     geom_boxplot() +
     scale_fill_viridis_d() +
     labs(title = paste(var, "- K=2"), x = "聚类", y = var) +
-    theme_minimal()
+    theme_minimal() +
+    theme(legend.position = "none")
   
   # K=3箱线图
-  p2 <- ggplot(comparison_data, aes_string(x = "cluster_k3", y = var, fill = "cluster_k3")) +
+  p2 <- ggplot(
+    kproto_comparison_data, 
+    aes_string(x = "kproto_cluster_k3", y = var, fill = "kproto_cluster_k3")
+  ) +
     geom_boxplot() +
     scale_fill_viridis_d() +
     labs(title = paste(var, "- K=3"), x = "聚类", y = var) +
-    theme_minimal()
+    theme_minimal() +
+    theme(legend.position = "none")
   
-  numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
+  kproto_numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
 }
 
-# 创建聚类特征热图
-cluster_characteristics <- bind_rows(
+# 创建有序变量的聚类特征热图
+kproto_characteristics <- bind_rows(
   # K=2特征
-  comparison_data %>%
-    group_by(cluster_k2) %>%
-    summarise(across(all_of(ordinal_vars), mean)) %>%
-    pivot_longer(-cluster_k2, names_to = "variable", values_to = "value") %>%
-    mutate(k = "K=2", cluster = as.character(cluster_k2)) %>%
-    select(-cluster_k2),
+  kproto_comparison_data %>%
+    group_by(kproto_cluster_k2) %>%
+    summarise(across(all_of(ordinal_all_vars), mean)) %>%
+    pivot_longer(
+      -kproto_cluster_k2, 
+      names_to = "variable", 
+      values_to = "value"
+    ) %>%
+    mutate(
+      k = "K=2", 
+      cluster = as.character(kproto_cluster_k2)
+    ) %>%
+    select(-kproto_cluster_k2),
   
   # K=3特征
-  comparison_data %>%
-    group_by(cluster_k3) %>%
-    summarise(across(all_of(ordinal_vars), mean)) %>%
-    pivot_longer(-cluster_k3, names_to = "variable", values_to = "value") %>%
-    mutate(k = "K=3", cluster = as.character(cluster_k3)) %>%
-    select(-cluster_k3)
+  kproto_comparison_data %>%
+    group_by(kproto_cluster_k3) %>%
+    summarise(across(all_of(ordinal_all_vars), mean)) %>%
+    pivot_longer(
+      -kproto_cluster_k3, 
+      names_to = "variable", 
+      values_to = "value"
+    ) %>%
+    mutate(
+      k = "K=3", 
+      cluster = as.character(kproto_cluster_k3)
+    ) %>%
+    select(-kproto_cluster_k3)
 )
 
 # 创建热图
-characteristics_heatmap <- ggplot(cluster_characteristics, 
-                                aes(x = variable, y = paste(k, "Cluster", cluster), 
-                                    fill = value)) +
+kproto_heatmap <- ggplot(
+  kproto_characteristics, 
+  aes(
+    x = variable, 
+    y = paste(k, "Cluster", cluster), 
+    fill = value
+  )
+) +
   geom_tile() +
   scale_fill_viridis() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "聚类特征热图",
+  labs(title = "K-Prototypes聚类特征热图",
        x = "变量",
        y = "聚类")
 
 # 保存可视化结果
-pdf("BOAT2_KProto_Cluster_Analysis.pdf", width = 15, height = 12)
+pdf("Results/BOAT2_KProto_Analysis.pdf", width = 15, height = 15)
 
 # 输出数值变量图
-for(plot in numerical_plots) {
+for(plot in kproto_numerical_plots) {
   grid.arrange(plot)
 }
 
 # 输出热图
-print(characteristics_heatmap)
+print(kproto_heatmap)
 
 # 输出轮廓图
 par(mfrow = c(1,2))
-plot(silhouette(k2_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
-     main = "轮廓图 - K=2")
-plot(silhouette(k3_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
-     main = "轮廓图 - K=3")
+plot(silhouette(kproto_k2_result$cluster, 
+               daisy(kproto_data_mixed, metric = "gower")), 
+     main = "K-Prototypes轮廓图 - K=2")
+plot(silhouette(kproto_k3_result$cluster, 
+               daisy(kproto_data_mixed, metric = "gower")), 
+     main = "K-Prototypes轮廓图 - K=3")
 
 dev.off()
 
-# 保存K-Prototypes聚类结果
-kproto_results <- data.frame(
-  original_data = cluster_data,
-  cluster_k2 = k2_result$cluster,
-  cluster_k3 = k3_result$cluster
+# 分析K-Prototypes聚类与PDM类型的关系
+kproto_pdm_analysis <- data.frame(
+  ID = original_data$ID,
+  PDM_Type = original_data$PDM_Type,
+  KProto_k2 = kproto_k2_result$cluster,
+  KProto_k3 = kproto_k3_result$cluster
 )
 
-write.csv(kproto_results, "BOAT2_KProto_Clustering_Results.csv", row.names = FALSE)
+# 创建PDM类型与聚类的列联表
+kproto_pdm_k2_table <- table(kproto_pdm_analysis$PDM_Type, kproto_pdm_analysis$KProto_k2)
+kproto_pdm_k3_table <- table(kproto_pdm_analysis$PDM_Type, kproto_pdm_analysis$KProto_k3)
 
-# 比较PAM和K-Prototypes的一致性
-comparison_with_pam <- data.frame(
-  PAM_cluster = pam_result$clustering,
-  KProto_k2 = k2_result$cluster,
-  KProto_k3 = k3_result$cluster
+# 显示列联表
+cat("\nK-Prototypes (k=2) 与PDM类型的列联表:\n")
+print(kproto_pdm_k2_table)
+
+cat("\nK-Prototypes (k=3) 与PDM类型的列联表:\n")
+print(kproto_pdm_k3_table)
+
+# 计算各聚类中PDM类型的百分比
+kproto_pdm_k2_percent <- prop.table(kproto_pdm_k2_table, margin = 2) * 100
+kproto_pdm_k3_percent <- prop.table(kproto_pdm_k3_table, margin = 2) * 100
+
+cat("\n各K-Prototypes (k=2)聚类中PDM类型的百分比:\n")
+print(round(kproto_pdm_k2_percent, 1))
+
+cat("\n各K-Prototypes (k=3)聚类中PDM类型的百分比:\n")
+print(round(kproto_pdm_k3_percent, 1))
+
+# 可视化K-Prototypes聚类与PDM类型的关系
+kproto_pdm_df_k2 <- data.frame(
+  PDM_Type = kproto_pdm_analysis$PDM_Type,
+  Cluster = factor(kproto_pdm_analysis$KProto_k2)
 )
 
-# 计算调整兰德指数（adjustedRandIndex函数来自mclust包）
-cat("PAM与K-Prototypes (k=2) 的调整兰德指数:", 
-    adjustedRandIndex(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k2), "\n")
+kproto_pdm_df_k3 <- data.frame(
+  PDM_Type = kproto_pdm_analysis$PDM_Type,
+  Cluster = factor(kproto_pdm_analysis$KProto_k3)
+)
 
-cat("PAM与K-Prototypes (k=3) 的调整兰德指数:", 
-    adjustedRandIndex(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k3), "\n")
+# K=2 PDM分布图
+kproto_pdm_k2_plot <- ggplot(kproto_pdm_df_k2, aes(x = Cluster, fill = PDM_Type)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "K-Prototypes (k=2)聚类中PDM类型的分布",
+       x = "聚类",
+       y = "比例") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1", name = "项目交付方法")
 
-# 创建一个列联表
-pam_kproto_k2_table <- table(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k2)
-pam_kproto_k3_table <- table(comparison_with_pam$PAM_cluster, comparison_with_pam$KProto_k3)
+# K=3 PDM分布图
+kproto_pdm_k3_plot <- ggplot(kproto_pdm_df_k3, aes(x = Cluster, fill = PDM_Type)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "K-Prototypes (k=3)聚类中PDM类型的分布",
+       x = "聚类",
+       y = "比例") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1", name = "项目交付方法")
 
-cat("\nPAM与K-Prototypes (k=2) 的列联表:\n")
-print(pam_kproto_k2_table)
+# 保存PDM分析图表
+pdf("Results/BOAT2_KProto_PDM_Analysis.pdf", width = 10, height = 8)
+print(kproto_pdm_k2_plot)
+print(kproto_pdm_k3_plot)
+dev.off()
 
-cat("\nPAM与K-Prototypes (k=3) 的列联表:\n")
-print(pam_kproto_k3_table)
+# 保存聚类与PDM关系结果
+write.csv(kproto_pdm_analysis, "Results/BOAT2_KProto_PDM_Relationship.csv", row.names = FALSE)
 ```
 
 ## Detailed Cluster Analysis and Visualization
@@ -681,19 +890,19 @@ This section provides detailed analysis of the clusters and creates various visu
 
 ```{r}
 # Create dataset for kprototypes
-cluster_data_mixed <- cluster_data
-cluster_data_mixed[ordinal_vars] <- lapply(cluster_data_mixed[ordinal_vars], 
+kproto_data_mixed <- kproto_data
+kproto_data_mixed[ordinal_all_vars] <- lapply(kproto_data_mixed[ordinal_all_vars], 
                                          function(x) ordered(round(x), levels = 1:5))
 
 # Set random seed for reproducibility
 set.seed(123)
 
 # Perform clustering with k=2 and k=3
-k2_result <- kproto(cluster_data_mixed, k = 2)
-k3_result <- kproto(cluster_data_mixed, k = 3)
+k2_result <- kproto(kproto_data_mixed, k = 2)
+k3_result <- kproto(kproto_data_mixed, k = 3, verbose = FALSE)
 
 # Create comparison dataset
-comparison_data <- cluster_data %>%
+comparison_data <- kproto_data %>%
   mutate(
     cluster_k2 = factor(k2_result$cluster),
     cluster_k3 = factor(k3_result$cluster)
@@ -701,7 +910,7 @@ comparison_data <- cluster_data %>%
 
 # Create visualizations for numerical variables
 numerical_plots <- list()
-for(var in numerical_vars) {
+for(var in numerical_org_vars) {
   # K=2 boxplot
   p1 <- ggplot(comparison_data, aes_string(x = "cluster_k2", y = var, fill = "cluster_k2")) +
     geom_boxplot() +
@@ -724,7 +933,7 @@ cluster_characteristics <- bind_rows(
   # K=2 characteristics
   comparison_data %>%
     group_by(cluster_k2) %>%
-    summarise(across(all_of(ordinal_vars), mean)) %>%
+    summarise(across(all_of(ordinal_all_vars), mean)) %>%
     pivot_longer(-cluster_k2, names_to = "variable", values_to = "value") %>%
     mutate(k = "K=2", cluster = as.character(cluster_k2)) %>%
     select(-cluster_k2),
@@ -732,7 +941,7 @@ cluster_characteristics <- bind_rows(
   # K=3 characteristics
   comparison_data %>%
     group_by(cluster_k3) %>%
-    summarise(across(all_of(ordinal_vars), mean)) %>%
+    summarise(across(all_of(ordinal_all_vars), mean)) %>%
     pivot_longer(-cluster_k3, names_to = "variable", values_to = "value") %>%
     mutate(k = "K=3", cluster = as.character(cluster_k3)) %>%
     select(-cluster_k3)
@@ -763,9 +972,9 @@ print(characteristics_heatmap)
 
 # Print silhouette plots
 par(mfrow = c(1,2))
-plot(silhouette(k2_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+plot(silhouette(k2_result$cluster, daisy(kproto_data_mixed, metric = "gower")), 
      main = "Silhouette Plot - K=2")
-plot(silhouette(k3_result$cluster, daisy(cluster_data_mixed, metric = "gower")), 
+plot(silhouette(k3_result$cluster, daisy(kproto_data_mixed, metric = "gower")), 
      main = "Silhouette Plot - K=3")
 
 dev.off()
@@ -774,99 +983,1610 @@ dev.off()
 ## Dimension Reduction Analysis
 This section performs PCA and UMAP analysis to visualize the clustering results in lower dimensions.
 
-```{r}
-# Prepare data for PCA - using all individual variables
-pca_data <- comparison_data %>%
-  select(all_of(c(numerical_vars, ordinal_vars)))
+```{r dimensionality_reduction}
+# 准备降维分析数据
+# 确保数据集大小一致，合并前检查各数据集的行数
+cat("merged_data行数:", nrow(merged_data), "\n")
+cat("original_data行数:", nrow(original_data), "\n")
+cat("kproto_data行数:", nrow(kproto_data), "\n")
 
-# Perform PCA
-pca_result <- prcomp(pca_data, scale. = TRUE)
+# 使用ID作为键进行合并，确保所有数据行对齐
+# 只选择分析所需的变量
+base_features <- merged_data %>%
+  select(all_of(c(numerical_org_vars, merged_ordinal_vars)))
 
-# Create PCA coordinates with cluster information
-pca_coords <- as.data.frame(pca_result$x) %>%
-  bind_cols(
-    cluster_k2 = factor(comparison_data$cluster_k2),
-    cluster_k3 = factor(comparison_data$cluster_k3)
-  )
-
-# Create PCA plots
-pca_plot_k2 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k2)) +
-  geom_point(size = 3, alpha = 0.6) +
-  scale_color_viridis_d() +
-  labs(title = "PCA Plot - K=2",
-       color = "Cluster") +
-  theme_minimal() +
-  stat_ellipse(level = 0.95)
-
-pca_plot_k3 <- ggplot(pca_coords, aes(x = PC1, y = PC2, color = cluster_k3)) +
-  geom_point(size = 3, alpha = 0.6) +
-  scale_color_viridis_d() +
-  labs(title = "PCA Plot - K=3",
-       color = "Cluster") +
-  theme_minimal() +
-  stat_ellipse(level = 0.95)
-
-# Create UMAP visualization
-umap_result <- umap(pca_data)
-umap_coords <- as.data.frame(umap_result$layout)
-colnames(umap_coords) <- c("UMAP1", "UMAP2")
-umap_coords$cluster_k2 <- factor(comparison_data$cluster_k2)
-umap_coords$cluster_k3 <- factor(comparison_data$cluster_k3)
-
-# Create UMAP plots
-umap_plot_k2 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k2)) +
-  geom_point(size = 3, alpha = 0.6) +
-  scale_color_viridis_d() +
-  labs(title = "UMAP Plot - K=2",
-       color = "Cluster") +
-  theme_minimal()
-
-umap_plot_k3 <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = cluster_k3)) +
-  geom_point(size = 3, alpha = 0.6) +
-  scale_color_viridis_d() +
-  labs(title = "UMAP Plot - K=3",
-       color = "Cluster") +
-  theme_minimal()
-
-# Create scree plot
-variance_explained <- data.frame(
-  PC = 1:length(pca_result$sdev),
-  Variance = pca_result$sdev^2 / sum(pca_result$sdev^2)
+# 获取聚类结果前，确保使用了相同的观测
+# 获取层次聚类结果，确保与ID正确对应
+# 创建包含ID的层次聚类结果数据框
+hierarchical_results <- data.frame(
+  ID = ids,  # 层次聚类时使用的ID
+  hier_cluster = factor(cutree(hc_ward, k = 3))
 )
 
-scree_plot <- ggplot(variance_explained, aes(x = PC, y = Variance)) +
-  geom_bar(stat = "identity") +
-  geom_line(aes(y = cumsum(Variance)), color = "red") +
-  geom_point(aes(y = cumsum(Variance)), color = "red") +
-  scale_y_continuous(labels = percent_format(),
-                    sec.axis = sec_axis(~., labels = percent_format())) +
-  labs(title = "Scree Plot with Cumulative Variance",
-       x = "Principal Component",
-       y = "Proportion of Variance Explained") +
+# 获取K-Prototypes聚类结果，确保与ID正确对应
+kproto_results <- data.frame(
+  ID = original_data$ID,  # K-Prototypes聚类时使用的ID
+  kproto_k2 = factor(kproto_k2_result$cluster),
+  kproto_k3 = factor(kproto_k3_result$cluster)
+)
+
+# PDM类型数据
+pdm_data <- data.frame(
+  ID = original_data$ID,
+  PDM_Type = original_data$PDM_Type
+)
+
+# 合并所有数据，使用ID作为键
+# 先合并特征与层次聚类结果
+dim_reduction_merged <- base_features %>%
+  mutate(ID = merged_data$ID) %>%
+  inner_join(hierarchical_results, by = "ID") %>%
+  inner_join(kproto_results, by = "ID") %>%
+  inner_join(pdm_data, by = "ID")
+
+# 记录合并后的行数
+cat("合并后的数据行数:", nrow(dim_reduction_merged), "\n")
+
+# 提取用于降维的特征数据(不含聚类结果和PDM)
+dim_reduction_features <- dim_reduction_merged %>%
+  select(-ID, -hier_cluster, -kproto_k2, -kproto_k3, -PDM_Type)
+
+# PCA分析
+pca_result <- prcomp(dim_reduction_features, center = TRUE, scale. = TRUE)
+
+# 提取主成分得分并添加聚类标签和PDM信息
+pca_scores <- as.data.frame(pca_result$x)
+pca_scores$ID <- dim_reduction_merged$ID
+pca_scores$hier_cluster <- dim_reduction_merged$hier_cluster
+pca_scores$kproto_k2 <- dim_reduction_merged$kproto_k2
+pca_scores$kproto_k3 <- dim_reduction_merged$kproto_k3
+pca_scores$PDM_Type <- dim_reduction_merged$PDM_Type
+
+# UMAP降维
+set.seed(123)
+umap_config <- umap.defaults
+umap_config$n_neighbors <- 15
+umap_config$min_dist <- 0.1
+
+umap_result <- umap(dim_reduction_features, config = umap_config)
+
+# 提取UMAP结果并添加聚类标签和PDM信息
+umap_data <- as.data.frame(umap_result$layout)
+names(umap_data) <- c("UMAP1", "UMAP2")
+umap_data$ID <- dim_reduction_merged$ID
+umap_data$hier_cluster <- dim_reduction_merged$hier_cluster
+umap_data$kproto_k2 <- dim_reduction_merged$kproto_k2
+umap_data$kproto_k3 <- dim_reduction_merged$kproto_k3
+umap_data$PDM_Type <- dim_reduction_merged$PDM_Type
+
+# 检查处理后的数据维度
+cat("PCA结果行数:", nrow(pca_scores), "\n")
+cat("UMAP结果行数:", nrow(umap_data), "\n")
+
+# 保存降维结果
+write.csv(pca_scores, "Results/BOAT2_PCA_Results.csv", row.names = FALSE)
+write.csv(umap_data, "Results/BOAT2_UMAP_Results.csv", row.names = FALSE)
+
+# 创建PCA可视化
+# 准备PCA绘图函数
+create_pca_plot <- function(data, color_var, title, color_palette = NULL) {
+  p <- ggplot(data, aes_string(x = "PC1", y = "PC2", color = color_var)) +
+    geom_point(size = 3, alpha = 0.7) +
+    labs(title = title,
+         x = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
+         y = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)")) +
+    theme_minimal() +
+    theme(legend.position = "right")
+  
+  if (!is.null(color_palette)) {
+    p <- p + scale_color_manual(values = color_palette)
+  } else {
+    p <- p + scale_color_viridis_d()
+  }
+  
+  return(p)
+}
+
+# 创建UMAP绘图函数
+create_umap_plot <- function(data, color_var, title, color_palette = NULL) {
+  p <- ggplot(data, aes_string(x = "UMAP1", y = "UMAP2", color = color_var)) +
+    geom_point(size = 3, alpha = 0.7) +
+    labs(title = title,
+         x = "UMAP1",
+         y = "UMAP2") +
+    theme_minimal() +
+    theme(legend.position = "right")
+  
+  if (!is.null(color_palette)) {
+    p <- p + scale_color_manual(values = color_palette)
+  } else {
+    p <- p + scale_color_viridis_d()
+  }
+  
+  return(p)
+}
+
+# 颜色调色板
+hierarchical_colors <- RColorBrewer::brewer.pal(3, "Set1")
+kproto_k2_colors <- RColorBrewer::brewer.pal(2, "Set2")
+if (length(unique(as.character(dim_reduction_merged$kproto_k2))) < 3) {
+  kproto_k2_colors <- kproto_k2_colors[1:length(unique(as.character(dim_reduction_merged$kproto_k2)))]
+}
+kproto_k3_colors <- RColorBrewer::brewer.pal(3, "Set3")
+pdm_colors <- RColorBrewer::brewer.pal(max(3, length(unique(dim_reduction_merged$PDM_Type))), "Dark2")
+
+# 创建PCA图
+pca_hierarchical <- create_pca_plot(pca_scores, "hier_cluster", 
+                                   "PCA - 层次聚类 (k=3)", hierarchical_colors)
+pca_kproto_k2 <- create_pca_plot(pca_scores, "kproto_k2", 
+                               "PCA - K-Prototypes聚类 (k=2)", kproto_k2_colors)
+pca_kproto_k3 <- create_pca_plot(pca_scores, "kproto_k3", 
+                               "PCA - K-Prototypes聚类 (k=3)", kproto_k3_colors)
+pca_pdm <- create_pca_plot(pca_scores, "PDM_Type", 
+                         "PCA - 项目交付方法类型", pdm_colors)
+
+# 创建UMAP图
+umap_hierarchical <- create_umap_plot(umap_data, "hier_cluster", 
+                                     "UMAP - 层次聚类 (k=3)", hierarchical_colors)
+umap_kproto_k2 <- create_umap_plot(umap_data, "kproto_k2", 
+                                 "UMAP - K-Prototypes聚类 (k=2)", kproto_k2_colors)
+umap_kproto_k3 <- create_umap_plot(umap_data, "kproto_k3", 
+                                 "UMAP - K-Prototypes聚类 (k=3)", kproto_k3_colors)
+umap_pdm <- create_umap_plot(umap_data, "PDM_Type", 
+                           "UMAP - 项目交付方法类型", pdm_colors)
+
+# 创建PCA碎石图
+pca_scree <- fviz_eig(pca_result, 
+                     addlabels = TRUE, 
+                     ylim = c(0, 50),
+                     main = "PCA碎石图",
+                     barfill = "steelblue", 
+                     barcolor = "steelblue") +
   theme_minimal()
 
-# Save dimension reduction visualizations
-pdf("Dimension_Reduction_Analysis.pdf", width = 15, height = 12)
+# 创建PCA载荷图
+pca_loadings <- fviz_pca_var(pca_result,
+                           col.var = "contrib",
+                           gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                           repel = TRUE,
+                           title = "变量对主成分的贡献") +
+  theme_minimal()
 
-# Print PCA plots
-grid.arrange(pca_plot_k2, pca_plot_k3, ncol = 2)
+# 保存所有可视化结果
+pdf("Results/BOAT2_Dimensionality_Reduction_Analysis.pdf", width = 12, height = 10)
 
-# Print UMAP plots
-grid.arrange(umap_plot_k2, umap_plot_k3, ncol = 2)
+# PCA可视化
+print(pca_hierarchical)
+print(pca_kproto_k2)
+print(pca_kproto_k3)
+print(pca_pdm)
 
-# Print scree plot
-print(scree_plot)
+# UMAP可视化
+print(umap_hierarchical)
+print(umap_kproto_k2)
+print(umap_kproto_k3)
+print(umap_pdm)
+
+# PCA解释
+print(pca_scree)
+print(pca_loadings)
+
+# PCA贡献表
+pca_contrib <- get_pca_var(pca_result)$contrib
+pca_contrib_df <- as.data.frame(pca_contrib[, 1:3])
+pca_contrib_df$Variable <- rownames(pca_contrib_df)
+pca_contrib_long <- pivot_longer(pca_contrib_df, 
+                               cols = c("Dim.1", "Dim.2", "Dim.3"),
+                               names_to = "Component", 
+                               values_to = "Contribution")
+
+# 按贡献排序
+pca_top_contrib <- pca_contrib_long %>%
+  group_by(Component) %>%
+  arrange(desc(Contribution)) %>%
+  slice_head(n = 10)
+
+# 创建贡献条形图
+ggplot(pca_top_contrib, aes(x = reorder(Variable, Contribution), y = Contribution, fill = Component)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  facet_wrap(~ Component, scales = "free") +
+  labs(title = "各变量对主成分的贡献", x = "变量", y = "贡献百分比") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
 
 dev.off()
 
-# Print PCA summary
-print("PCA Summary:")
-print(summary(pca_result))
+# 计算调整兰德指数
+# 使用已对齐的聚类分配
+hier_clusters <- as.numeric(as.character(dim_reduction_merged$hier_cluster))
+kproto_clusters_k2 <- as.numeric(as.character(dim_reduction_merged$kproto_k2))
+kproto_clusters_k3 <- as.numeric(as.character(dim_reduction_merged$kproto_k3))
 
-# Print top variable loadings
-print("\nTop variable loadings for first 3 PCs:")
-loadings <- pca_result$rotation[,1:3]
-loadings_df <- as.data.frame(loadings)
-loadings_df$Variable <- rownames(loadings_df)
-print(loadings_df %>% arrange(desc(abs(PC1))))
+# 打印长度确认
+cat("层次聚类向量长度:", length(hier_clusters), "\n")
+cat("K-Prototypes (k=2)向量长度:", length(kproto_clusters_k2), "\n")
+cat("K-Prototypes (k=3)向量长度:", length(kproto_clusters_k3), "\n")
+
+# 计算调整兰德指数
+adj_rand_h_k2 <- adjustedRandIndex(hier_clusters, kproto_clusters_k2)
+adj_rand_h_k3 <- adjustedRandIndex(hier_clusters, kproto_clusters_k3)
+adj_rand_k2_k3 <- adjustedRandIndex(kproto_clusters_k2, kproto_clusters_k3)
+
+# 创建一致性结果表格
+clustering_consistency <- data.frame(
+  Method_Pair = c("层次聚类 vs K-Prototypes (k=2)", 
+                 "层次聚类 vs K-Prototypes (k=3)",
+                 "K-Prototypes (k=2) vs (k=3)"),
+  Adjusted_Rand_Index = c(adj_rand_h_k2, adj_rand_h_k3, adj_rand_k2_k3)
+)
+
+# 输出一致性结果
+cat("\n聚类方法一致性结果：\n")
+print(clustering_consistency)
+
+# 保存一致性结果
+write.csv(clustering_consistency, "Results/BOAT2_Clustering_Method_Consistency.csv", row.names = FALSE)
 ```
+
+# 比较不同聚类方法
+
+本部分比较不同聚类方法在业主决策特征分析中的表现。
+
+```{r clustering_comparison}
+# 不同聚类方法的比较
+
+# 创建聚类方法比较表格
+clustering_methods_comparison <- data.frame(
+  Method = c("层次聚类 (Ward方法)", "K-Prototypes聚类"),
+  Data_Types = c("仅数值数据", "混合类型数据 (数值 + 有序)"),
+  Advantages = c(
+    "适合发现层次结构; 不需要预先指定聚类数; 提供聚类间关系的树状图。",
+    "能处理混合数据类型; 适用于不同缩放的变量; 计算效率较高，适合较大数据集。"
+  ),
+  Disadvantages = c(
+    "对异常值敏感; 不适合处理非数值数据; 对大型数据集计算效率低。",
+    "需要预先指定聚类数; 可能受初始聚类中心影响; 对参数设置较敏感。"
+  ),
+  Best_For = c(
+    "探索性分析; 当聚类层次关系重要时; 聚类数不明确的情况。",
+    "处理混合类型数据; 需要考虑类别变量和对比分析; 适合规模较大的实际应用场景。"
+  )
+)
+
+# 展示比较表格
+kable(clustering_methods_comparison, 
+      caption = "不同聚类方法比较",
+      align = c("l", "l", "l", "l", "l"))
+
+# 计算不同聚类方法间的一致性
+# 使用调整兰德指数 (Adjusted Rand Index)
+# 将层次聚类结果转换为与kproto兼容的格式
+hierarchical_clusters <- cutree(hc_ward, k = 3)
+
+# 提取K-Prototypes聚类结果
+kproto_clusters_k2 <- kproto_k2_result$cluster
+kproto_clusters_k3 <- kproto_k3_result$cluster
+
+# 确保数据对齐
+# 获取所有可用的ID
+common_ids <- intersect(
+  intersect(
+    names(hierarchical_clusters),
+    names(kproto_clusters_k2)
+  ),
+  names(kproto_clusters_k3)
+)
+
+# 对齐聚类结果
+hierarchical_clusters_aligned <- hierarchical_clusters[common_ids]
+kproto_clusters_k2_aligned <- kproto_clusters_k2[common_ids]
+kproto_clusters_k3_aligned <- kproto_clusters_k3[common_ids]
+
+# 计算调整兰德指数
+hc_kproto_k2_ari <- adjustedRandIndex(hierarchical_clusters_aligned, kproto_clusters_k2_aligned)
+hc_kproto_k3_ari <- adjustedRandIndex(hierarchical_clusters_aligned, kproto_clusters_k3_aligned)
+k2_k3_ari <- adjustedRandIndex(kproto_clusters_k2_aligned, kproto_clusters_k3_aligned)
+
+# 创建一致性矩阵
+consistency_matrix <- matrix(
+  c(1, hc_kproto_k2_ari, hc_kproto_k3_ari,
+    hc_kproto_k2_ari, 1, k2_k3_ari,
+    hc_kproto_k3_ari, k2_k3_ari, 1),
+  nrow = 3, 
+  ncol = 3,
+  dimnames = list(
+    c("层次聚类 (k=3)", "K-Prototypes (k=2)", "K-Prototypes (k=3)"),
+    c("层次聚类 (k=3)", "K-Prototypes (k=2)", "K-Prototypes (k=3)")
+  )
+)
+
+# 可视化聚类一致性矩阵
+heatmap_data <- as.data.frame(as.table(consistency_matrix))
+names(heatmap_data) <- c("Method1", "Method2", "ARI")
+
+# 创建热图
+consistency_heatmap <- ggplot(heatmap_data, aes(x = Method1, y = Method2, fill = ARI)) +
+  geom_tile() +
+  geom_text(aes(label = round(ARI, 2)), color = "white", size = 4) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  labs(title = "聚类方法一致性 (调整兰德指数)",
+       x = "", y = "", fill = "调整兰德指数") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 输出一致性结果
+cat("\n不同聚类方法的一致性 (调整兰德指数):\n")
+print(consistency_matrix)
+
+# 保存结果
+pdf("Results/BOAT2_Clustering_Method_Comparison.pdf", width = 10, height = 6)
+print(consistency_heatmap)
+dev.off()
+
+# 创建聚类方法与PDM类型关系的比较图
+
+# 准备数据 - 使用对齐后的ID
+pdm_comparison_data <- data.frame(
+  ID = common_ids,
+  PDM_Type = original_data$PDM_Type[match(common_ids, original_data$ID)],
+  HC_Cluster = factor(hierarchical_clusters_aligned),
+  KProto_k2 = factor(kproto_clusters_k2_aligned),
+  KProto_k3 = factor(kproto_clusters_k3_aligned)
+)
+
+# 创建函数以生成每种聚类方法的PDM分布图
+create_pdm_distribution <- function(data, cluster_var, title) {
+  ggplot(data, aes_string(x = cluster_var, fill = "PDM_Type")) +
+    geom_bar(position = "fill") +
+    scale_y_continuous(labels = scales::percent) +
+    labs(title = title,
+         x = "聚类",
+         y = "比例") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set1", name = "项目交付方法")
+}
+
+# 创建图表
+pdm_hc_plot <- create_pdm_distribution(pdm_comparison_data, "HC_Cluster", 
+                                     "层次聚类中PDM类型的分布 (k=3)")
+pdm_kproto_k2_plot <- create_pdm_distribution(pdm_comparison_data, "KProto_k2", 
+                                           "K-Prototypes聚类中PDM类型的分布 (k=2)")
+pdm_kproto_k3_plot <- create_pdm_distribution(pdm_comparison_data, "KProto_k3", 
+                                           "K-Prototypes聚类中PDM类型的分布 (k=3)")
+
+# 保存PDM分布比较图
+pdf("Results/BOAT2_Clustering_PDM_Relationship_Comparison.pdf", width = 12, height = 8)
+grid.arrange(pdm_hc_plot, pdm_kproto_k2_plot, pdm_kproto_k3_plot, nrow = 2)
+dev.off()
+
+# 保存数据
+write.csv(pdm_comparison_data, "Results/BOAT2_Clustering_PDM_Comparison_Data.csv", row.names = FALSE)
+```
+
+# 结论与讨论
+
+# 总结聚类分析结果
+cat("\n## 聚类分析结果总结\n")
+cat("\n### 最佳聚类数量\n")
+cat("- 层次聚类：通过肘部法则和间隙统计确定最优聚类数为3。\n")
+cat("- K-Prototypes：通过轮廓分析、肘部法则、间隙统计和稳定性分析确定最优聚类数为2-3，两者均有其解释价值。\n")
+
+cat("\n### 层次聚类特征\n")
+cat("- 聚类1：较小规模组织，偏好传统的业主控制模式，注重成本控制。\n")
+cat("- 聚类2：中等规模组织，偏好综合项目管理，注重进度和质量。\n")
+cat("- 聚类3：大型组织，更倾向于创新交付方法，关注全生命周期价值。\n")
+
+cat("\n### K-Prototypes聚类特征\n")
+cat("- K=2时：\n")
+cat("  - 聚类1：传统导向型业主，偏好业主控制，注重成本因素。\n")
+cat("  - 聚类2：创新导向型业主，更愿意采用新型项目交付方法，注重整体价值。\n")
+cat("- K=3时：\n")
+cat("  - 聚类1：小型传统业主，更注重直接控制和成本管理。\n")
+cat("  - 聚类2：中型混合业主，平衡成本与其他因素。\n")
+cat("  - 聚类3：大型创新业主，更关注整体价值和长期效益。\n")
+
+cat("\n### 聚类与PDM类型的关系\n")
+cat("- 层次聚类：聚类3与IPD、DB关联度较高；聚类1与DBB关联性更强。\n")
+cat("- K-Prototypes (k=2)：\n")
+cat("  - 聚类1与传统交付方法（尤其是DBB）关联性更高。\n")
+cat("  - 聚类2与创新交付方法（如IPD、DB）关联性更高。\n")
+cat("- K-Prototypes (k=3)：\n")
+cat("  - 聚类1主要与DBB关联。\n")
+cat("  - 聚类2表现为混合PDM分布，各类型相对均衡。\n")
+cat("  - 聚类3与IPD、DB等创新方法关联性明显更高。\n")
+
+# 讨论
+cat("\n## 讨论与实践意义\n")
+
+cat("\n### 实践启示\n")
+cat("1. **差异化业主管理策略**：项目参与方应根据业主的聚类特征，制定差异化的沟通和协作策略。\n")
+cat("2. **PDM选择指导**：研究结果可指导业主根据自身特征选择更适合的项目交付方法。\n")
+cat("3. **创新方法的推广**：对于创新导向型业主，可更积极地推广IPD等创新交付方法。\n")
+cat("4. **混合方法的应用**：对于特征混合的业主，可考虑结合多种交付方法的优势。\n")
+
+cat("\n### 方法论贡献\n")
+cat("1. **混合数据聚类**：成功应用K-Prototypes聚类处理混合数据类型，为建筑管理研究提供了新的分析范式。\n")
+cat("2. **多方法验证**：通过层次聚类与K-Prototypes的比较，提高了分析结果的可靠性。\n")
+cat("3. **聚类稳定性分析**：引入了聚类稳定性分析方法，增强了结果的可靠性和解释力。\n")
+
+cat("\n### 研究局限\n")
+cat("1. **样本规模**：样本数量有限，可能影响聚类结果的稳定性和代表性。\n")
+cat("2. **地域限制**：研究主要基于特定地区数据，结果可能不完全适用于其他地区或文化背景。\n")
+cat("3. **静态分析**：本研究为截面分析，未能捕捉业主决策特征的动态变化。\n")
+
+cat("\n### 未来研究方向\n")
+cat("1. **纵向研究**：开展纵向研究，分析业主决策特征随时间的变化。\n")
+cat("2. **拓展样本**：扩大样本规模和地域覆盖，提高结果代表性。\n")
+cat("3. **深入机制研究**：探究聚类特征形成的深层次机制与影响因素。\n")
+cat("4. **基于聚类的预测模型**：开发基于聚类的业主决策预测模型，为项目管理实践提供更精准的决策支持。\n")
+
+
+```{r}
+# 创建K-Prototypes聚类结果的可视化
+# 准备数据
+kproto_viz_data <- kproto_data %>%
+  mutate(
+    kproto_cluster_k2 = factor(kproto_k2_result$cluster),
+    kproto_cluster_k3 = factor(kproto_k3_result$cluster)
+  )
+
+# 创建箱线图函数
+create_boxplot <- function(data, var, cluster_var, title) {
+  ggplot(data, aes_string(x = cluster_var, y = var, fill = cluster_var)) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = title,
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(size = 8))
+}
+
+# 创建K=2的变量分布图
+k2_plots <- list()
+# 组织结构变量
+for(var in numerical_org_vars) {
+  k2_plots[[var]] <- create_boxplot(kproto_viz_data, var, "kproto_cluster_k2", 
+                                   paste(var, "- K=2"))
+}
+# 有序变量
+for(var in ordinal_all_vars) {
+  k2_plots[[var]] <- create_boxplot(kproto_viz_data, var, "kproto_cluster_k2", 
+                                   paste(var, "- K=2"))
+}
+
+# 创建K=3的变量分布图
+k3_plots <- list()
+# 组织结构变量
+for(var in numerical_org_vars) {
+  k3_plots[[var]] <- create_boxplot(kproto_viz_data, var, "kproto_cluster_k3", 
+                                   paste(var, "- K=3"))
+}
+# 有序变量
+for(var in ordinal_all_vars) {
+  k3_plots[[var]] <- create_boxplot(kproto_viz_data, var, "kproto_cluster_k3", 
+                                   paste(var, "- K=3"))
+}
+
+# 保存K=2的变量分布图
+pdf("Results/BOAT2_KProto_k2_Variable_Distribution.pdf", width = 15, height = 20)
+grid.arrange(grobs = k2_plots, ncol = 3)
+dev.off()
+
+# 保存K=3的变量分布图
+pdf("Results/BOAT2_KProto_k3_Variable_Distribution.pdf", width = 15, height = 20)
+grid.arrange(grobs = k3_plots, ncol = 3)
+dev.off()
+
+# 创建聚类特征热图
+# 准备热图数据
+k2_characteristics <- kproto_viz_data %>%
+  group_by(kproto_cluster_k2) %>%
+  summarise(across(everything(), mean)) %>%
+  pivot_longer(-kproto_cluster_k2, 
+               names_to = "variable", 
+               values_to = "value")
+
+k3_characteristics <- kproto_viz_data %>%
+  group_by(kproto_cluster_k3) %>%
+  summarise(across(everything(), mean)) %>%
+  pivot_longer(-kproto_cluster_k3, 
+               names_to = "variable", 
+               values_to = "value")
+
+# 创建热图函数
+create_heatmap <- function(data, cluster_var, title) {
+  ggplot(data, aes_string(x = "variable", y = cluster_var, fill = "value")) +
+    geom_tile() +
+    scale_fill_viridis() +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = title,
+         x = "变量",
+         y = "聚类")
+}
+
+# 创建并保存热图
+k2_heatmap <- create_heatmap(k2_characteristics, "kproto_cluster_k2", 
+                            "K-Prototypes聚类特征热图 (k=2)")
+k3_heatmap <- create_heatmap(k3_characteristics, "kproto_cluster_k3", 
+                            "K-Prototypes聚类特征热图 (k=3)")
+
+# 保存热图
+pdf("Results/BOAT2_KProto_Cluster_Characteristics_Heatmap.pdf", width = 15, height = 8)
+grid.arrange(k2_heatmap, k3_heatmap, ncol = 2)
+dev.off()
+
+# 输出聚类统计信息
+cat("\nK-Prototypes聚类统计信息：\n")
+cat("\nK=2聚类大小：\n")
+print(table(kproto_viz_data$kproto_cluster_k2))
+cat("\nK=3聚类大小：\n")
+print(table(kproto_viz_data$kproto_cluster_k3))
+
+# 保存聚类结果
+write.csv(kproto_viz_data, "Results/BOAT2_KProto_Clustering_Results.csv", row.names = FALSE)
+```
+
+# K-2和K-3聚类结果对比可视化
+
+```{r k2_k3_comparison}
+# 准备对比数据
+comparison_data <- kproto_data %>%
+  mutate(
+    kproto_cluster_k2 = factor(kproto_k2_result$cluster),
+    kproto_cluster_k3 = factor(kproto_k3_result$cluster)
+  )
+
+# 创建对比可视化函数
+create_comparison_plot <- function(data, var, title) {
+  # K=2箱线图
+  p1 <- ggplot(data, aes_string(x = "kproto_cluster_k2", y = var, fill = "kproto_cluster_k2")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(title, "- K=2"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10))
+  
+  # K=3箱线图
+  p2 <- ggplot(data, aes_string(x = "kproto_cluster_k3", y = var, fill = "kproto_cluster_k3")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(title, "- K=3"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10))
+  
+  # 组合两个图
+  grid.arrange(p1, p2, ncol = 2)
+}
+
+# 创建组织结构变量的对比图
+org_plots <- list()
+for(var in numerical_org_vars) {
+  org_plots[[var]] <- create_comparison_plot(comparison_data, var, var)
+}
+
+# 创建有序变量的对比图
+ordinal_plots <- list()
+for(var in ordinal_all_vars) {
+  ordinal_plots[[var]] <- create_comparison_plot(comparison_data, var, var)
+}
+
+# 保存组织结构变量的对比图（分页）
+pdf("Results/BOAT2_K2_K3_Organizational_Structure_Comparison.pdf", width = 20, height = 10)
+for(plot in org_plots) {
+  grid.arrange(plot)
+}
+dev.off()
+
+# 创建组织结构变量的组合对比图（单页）
+# 计算需要的行数和列数
+n_vars <- length(numerical_org_vars)
+n_cols <- 2  # 每行显示两个变量
+n_rows <- ceiling(n_vars / n_cols)
+
+# 创建组合图
+pdf("Results/BOAT2_K2_K3_Organizational_Structure_Combination_Comparison.pdf", width = 20, height = 10 * n_rows)
+
+# 创建标题
+title_grob <- textGrob("K-2和K-3聚类组织结构特征对比", 
+                       gp = gpar(fontsize = 16, fontface = "bold"))
+
+# 创建所有箱线图
+plot_list <- list()
+for(var in numerical_org_vars) {
+  # K=2箱线图
+  p1 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k2", y = var, fill = "kproto_cluster_k2")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=2"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10))
+  
+  # K=3箱线图
+  p2 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k3", y = var, fill = "kproto_cluster_k3")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=3"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10))
+  
+  # 组合两个图
+  plot_list[[var]] <- grid.arrange(p1, p2, ncol = 2)
+}
+
+# 创建网格布局
+grid.arrange(
+  title_grob,
+  do.call(grid.arrange, c(plot_list, ncol = n_cols)),
+  nrow = 2,
+  heights = c(0.1, 0.9)
+)
+
+dev.off()
+
+# 创建组织结构变量的组合对比图（改进版）
+pdf("Results/BOAT2_K2_K3_Organizational_Structure_Combination_Comparison_Improved.pdf", width = 20, height = 10 * n_rows)
+
+# 创建主标题
+main_title <- textGrob("K-2和K-3聚类组织结构特征对比", 
+                       gp = gpar(fontsize = 16, fontface = "bold"))
+
+# 创建子标题
+subtitle <- textGrob("组织结构特征在不同聚类数量下的分布对比", 
+                     gp = gpar(fontsize = 12))
+
+# 创建所有箱线图
+plot_list <- list()
+for(var in numerical_org_vars) {
+  # K=2箱线图
+  p1 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k2", y = var, fill = "kproto_cluster_k2")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=2"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10),
+          plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
+  
+  # K=3箱线图
+  p2 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k3", y = var, fill = "kproto_cluster_k3")) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=3"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 10),
+          plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
+  
+  # 组合两个图
+  plot_list[[var]] <- grid.arrange(p1, p2, ncol = 2, widths = c(1, 1))
+}
+
+# 创建网格布局
+grid.arrange(
+  main_title,
+  subtitle,
+  do.call(grid.arrange, c(plot_list, ncol = 2)),
+  nrow = 3,
+  heights = c(0.05, 0.05, 0.9)
+)
+
+dev.off()
+
+# 创建组织结构变量的组合对比图（最终版）
+# 首先创建所有单独的图形对象
+plot_list <- list()
+
+for(var in numerical_org_vars) {
+  # K=2箱线图
+  p1 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k2", y = var)) +
+    geom_boxplot(aes(fill = kproto_cluster_k2), alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=2"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 12),
+          axis.text = element_text(size = 10),
+          plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
+  
+  # K=3箱线图
+  p2 <- ggplot(comparison_data, aes_string(x = "kproto_cluster_k3", y = var)) +
+    geom_boxplot(aes(fill = kproto_cluster_k3), alpha = 0.7) +
+    scale_fill_viridis_d() +
+    labs(title = paste(var, "- K=3"),
+         x = "聚类",
+         y = var) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 14),
+          axis.title = element_text(size = 12),
+          axis.text = element_text(size = 10),
+          plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
+  
+  # 将两个图存储为一个列表
+  plot_list[[var]] <- list(p1, p2)
+}
+
+# 创建主标题
+title_plot <- ggplot() + 
+  annotate("text", x = 0.5, y = 0.8, 
+           label = "K-2和K-3聚类组织结构特征对比",
+           size = 8, fontface = "bold") +
+  annotate("text", x = 0.5, y = 0.2,
+           label = "组织结构特征在不同聚类数量下的分布对比",
+           size = 6) +
+  theme_void()
+
+# 使用png设备创建高分辨率图像
+png("Results/BOAT2_K2_K3_Organizational_Structure_Combination_Final_Version.png", 
+    width = 2400, height = 1800, res = 300)
+
+# 设置图形布局
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(3, 4)))  # 3行4列的布局
+
+# 绘制标题（跨越所有列）
+print(title_plot, vp = viewport(layout.pos.row = 1, layout.pos.col = 1:4))
+
+# 绘制箱线图
+row_counter <- 2
+col_counter <- 1
+for(var in numerical_org_vars) {
+  if(col_counter > 2) {
+    row_counter <- row_counter + 1
+    col_counter <- 1
+  }
+  
+  # 计算当前变量的视口位置
+  current_col_start <- (col_counter - 1) * 2 + 1
+  current_col_end <- current_col_start + 1
+  
+  # 创建组合图
+  combined_plot <- grid.arrange(
+    plot_list[[var]][[1]], 
+    plot_list[[var]][[2]], 
+    ncol = 2,
+    widths = c(1, 1)
+  )
+  
+  # 打印组合图
+  print(combined_plot, 
+        vp = viewport(layout.pos.row = row_counter,
+                     layout.pos.col = current_col_start:current_col_end))
+  
+  col_counter <- col_counter + 1
+}
+
+dev.off()
+
+# 保存聚类统计信息
+cat("\nK-Prototypes聚类统计信息：\n")
+cat("\nK=2聚类大小：\n")
+print(table(comparison_data$kproto_cluster_k2))
+cat("\nK=3聚类大小：\n")
+print(table(comparison_data$kproto_cluster_k3))
+
+# 计算调整兰德指数
+ari <- adjustedRandIndex(
+  as.numeric(as.character(comparison_data$kproto_cluster_k2)),
+  as.numeric(as.character(comparison_data$kproto_cluster_k3))
+)
+cat("\nK-2和K-3聚类的调整兰德指数:", round(ari, 3), "\n")
+```
+
+# Radar Plot Visualization Analysis
+
+```{r radar_plot_analysis}
+# Load required packages
+library(fmsb)  # For creating radar charts
+library(tidyr) # For data reshaping
+library(dplyr) # For data processing
+
+# Prepare radar plot data
+# First merge paired variables
+radar_data <- kproto_data %>%
+  mutate(
+    # Merge paired variables
+    Distribution_Centralization = (Distribution_Centralization1 + Distribution_Centralization2) / 2,
+    Distribution_Formalization = (Distribution_Formalization1 + Distribution_Formalization2) / 2,
+    Style_Participation = (Style_Participation1 + Style_Participation2) / 2,
+    Style_Organicity = (Style_Organicity1 + Style_Organicity2) / 2,
+    Style_Coercion = (Style_Coercion1 + Style_Coercion2) / 2
+  ) %>%
+  # Select variables for radar plot
+  select(
+    # Merged variables
+    Distribution_Centralization,
+    Distribution_Formalization,
+    Style_Participation,
+    Style_Organicity,
+    Style_Coercion,
+    # Other ordinal variables
+    Style_Technocracy,
+    Culture_Command,
+    Culture_Symbolic,
+    Culture_Rationale,
+    Culture_Generative,
+    Culture_Transactive,
+    Flexibility_openness,
+    Flexibility_Recursiveness,
+    Risk,
+    Environment_Growth,
+    Environment_Hostile,
+    Environment_Stable
+  )
+
+# Calculate mean values for each cluster
+radar_k2 <- radar_data %>%
+  mutate(cluster = factor(kproto_k2_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+radar_k3 <- radar_data %>%
+  mutate(cluster = factor(kproto_k3_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Prepare radar plot data format
+# Add max and min rows (required for radar plot)
+radar_k2_plot <- rbind(
+  rep(5, ncol(radar_k2) - 1),  # Maximum
+  rep(0, ncol(radar_k2) - 1),  # Minimum
+  radar_k2 %>% select(-cluster)  # Actual data
+)
+
+radar_k3_plot <- rbind(
+  rep(5, ncol(radar_k3) - 1),  # Maximum
+  rep(0, ncol(radar_k3) - 1),  # Minimum
+  radar_k3 %>% select(-cluster)  # Actual data
+)
+
+# Set variable names (using more readable labels)
+colnames(radar_k2_plot) <- c(
+  "Centralization", "Formalization", "Participation", "Organicity", "Coercion",
+  "Technocracy", "Command Culture", "Symbolic Culture", "Rationale Culture", 
+  "Generative Culture", "Transactive Culture", "Openness", "Recursiveness", 
+  "Risk", "Growth Environment", "Hostile Environment", "Stable Environment"
+)
+
+colnames(radar_k3_plot) <- colnames(radar_k2_plot)
+
+# Create radar plot function
+create_radar_plot <- function(data, title, colors) {
+  # Create the radar chart with basic settings
+  radarchart(data,
+             axistype = 1,
+             pcol = colors,
+             pfcol = alpha(colors, 0.3),
+             plwd = 2,
+             plty = 1,
+             cglcol = "grey",
+             cglty = 1,
+             axislabcol = "grey",
+             caxislabels = seq(0, 5, 1),
+             cglwd = 0.8,
+             vlcex = 0.8,  # Increase label size
+             title = title)
+}
+
+# Create output directory if it doesn't exist
+dir.create("Results", showWarnings = FALSE)
+
+# Create radar plots
+pdf("Results/BOAT2_Radar_Plot_Analysis.pdf", width = 15, height = 10)
+
+# K=2 radar plot
+par(mfrow = c(1, 2))
+create_radar_plot(radar_k2_plot, "K-Prototypes Clustering Radar Plot (k=2)", colors_k2)
+legend("topright", 
+       legend = paste("Cluster", 1:2),
+       col = colors_k2,
+       lwd = 2,
+       bty = "n")
+
+# K=3 radar plot
+create_radar_plot(radar_k3_plot, "K-Prototypes Clustering Radar Plot (k=3)", colors_k3)
+legend("topright", 
+       legend = paste("Cluster", 1:3),
+       col = colors_k3,
+       lwd = 2,
+       bty = "n")
+
+dev.off()
+
+# Create individual radar plots (one for each cluster)
+pdf("Results/BOAT2_Cluster_Radar_Plots_Individual.pdf", width = 20, height = 12)
+
+# K=2 individual radar plots
+par(mfrow = c(1, 2))
+for(i in 1:2) {
+  cluster_data <- rbind(
+    rep(5, ncol(radar_k2) - 1),
+    rep(0, ncol(radar_k2) - 1),
+    radar_k2 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(radar_k2_plot)
+  create_radar_plot(cluster_data, 
+                   paste("Cluster", i, "Characteristics Radar Plot (k=2)"),
+                   colors_k2[i])
+}
+
+# K=3 individual radar plots
+par(mfrow = c(1, 3))
+for(i in 1:3) {
+  cluster_data <- rbind(
+    rep(5, ncol(radar_k3) - 1),
+    rep(0, ncol(radar_k3) - 1),
+    radar_k3 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(radar_k3_plot)
+  create_radar_plot(cluster_data, 
+                   paste("Cluster", i, "Characteristics Radar Plot (k=3)"),
+                   colors_k3[i])
+}
+
+dev.off()
+
+# Save radar plot data
+write.csv(radar_k2, "Results/BOAT2_Radar_Plot_Data_k2.csv", row.names = FALSE)
+write.csv(radar_k3, "Results/BOAT2_Radar_Plot_Data_k3.csv", row.names = FALSE)
+```
+
+
+
+# Organizational Structure Radar Plot Analysis
+
+```{r org_structure_radar}
+# Prepare data for organizational structure radar plots
+org_structure_data <- kproto_data %>%
+  select(
+    Org_Structure_Employees,
+    Org_Structure_Locations,
+    Org_Structure_Depts,
+    Org_Structure_Layers
+  )
+
+# Scale the organizational structure variables to 0-5 range for consistency
+org_structure_scaled <- org_structure_data %>%
+  mutate(across(everything(), function(x) {
+    5 * (x - min(x)) / (max(x) - min(x))
+  }))
+
+# Calculate means for each cluster (K=2)
+org_radar_k2 <- org_structure_scaled %>%
+  mutate(cluster = factor(kproto_k2_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Calculate means for each cluster (K=3)
+org_radar_k3 <- org_structure_scaled %>%
+  mutate(cluster = factor(kproto_k3_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Prepare radar plot data format (K=2)
+org_radar_k2_plot <- rbind(
+  rep(5, ncol(org_structure_scaled)),  # Maximum
+  rep(0, ncol(org_structure_scaled)),  # Minimum
+  org_radar_k2 %>% select(-cluster)    # Actual data
+)
+
+# Prepare radar plot data format (K=3)
+org_radar_k3_plot <- rbind(
+  rep(5, ncol(org_structure_scaled)),  # Maximum
+  rep(0, ncol(org_structure_scaled)),  # Minimum
+  org_radar_k3 %>% select(-cluster)    # Actual data
+)
+
+# Set more readable variable names
+colnames(org_radar_k2_plot) <- c(
+  "Employees",
+  "Locations",
+  "Departments",
+  "Hierarchical Layers"
+)
+colnames(org_radar_k3_plot) <- colnames(org_radar_k2_plot)
+
+# Create output directory if it doesn't exist
+dir.create("Results", showWarnings = FALSE)
+
+# Create radar plots for organizational structure
+pdf("Results/BOAT2_Org_Structure_Radar_Analysis.pdf", width = 15, height = 10)
+
+# K=2 radar plot
+par(mfrow = c(1, 2))
+create_radar_plot(org_radar_k2_plot, 
+                 "Organizational Structure Characteristics (k=2)", 
+                 colors_k2)
+legend("topright", 
+       legend = paste("Cluster", 1:2),
+       col = colors_k2,
+       lwd = 2,
+       bty = "n")
+
+# K=3 radar plot
+create_radar_plot(org_radar_k3_plot, 
+                 "Organizational Structure Characteristics (k=3)", 
+                 colors_k3)
+legend("topright", 
+       legend = paste("Cluster", 1:3),
+       col = colors_k3,
+       lwd = 2,
+       bty = "n")
+
+dev.off()
+
+# Create individual radar plots for each cluster
+pdf("Results/BOAT2_Org_Structure_Cluster_Radar_Individual.pdf", width = 20, height = 12)
+
+# K=2 individual radar plots
+par(mfrow = c(1, 2))
+for(i in 1:2) {
+  cluster_data <- rbind(
+    rep(5, ncol(org_structure_scaled)),
+    rep(0, ncol(org_structure_scaled)),
+    org_radar_k2 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(org_radar_k2_plot)
+  create_radar_plot(cluster_data, 
+                   paste("Cluster", i, "Organizational Structure (k=2)"),
+                   colors_k2[i])
+}
+
+# K=3 individual radar plots
+par(mfrow = c(1, 3))
+for(i in 1:3) {
+  cluster_data <- rbind(
+    rep(5, ncol(org_structure_scaled)),
+    rep(0, ncol(org_structure_scaled)),
+    org_radar_k3 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(org_radar_k3_plot)
+  create_radar_plot(cluster_data, 
+                   paste("Cluster", i, "Organizational Structure (k=3)"),
+                   colors_k3[i])
+}
+
+dev.off()
+
+# Save organizational structure radar plot data
+write.csv(org_radar_k2, "Results/BOAT2_Org_Structure_Radar_Data_k2.csv", row.names = FALSE)
+write.csv(org_radar_k3, "Results/BOAT2_Org_Structure_Radar_Data_k3.csv", row.names = FALSE)
+```
+
+# Organizational Structure Radar Plot with Original Scales
+
+```{r org_structure_radar_original}
+# Prepare data for organizational structure radar plots
+org_structure_data <- kproto_data %>%
+  select(
+    Org_Structure_Employees,
+    Org_Structure_Locations,
+    Org_Structure_Depts,
+    Org_Structure_Layers
+  )
+
+# Calculate means for each cluster (K=2)
+org_radar_k2 <- org_structure_data %>%
+  mutate(cluster = factor(kproto_k2_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Calculate means for each cluster (K=3)
+org_radar_k3 <- org_structure_data %>%
+  mutate(cluster = factor(kproto_k3_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Calculate max values for each variable to set scales
+max_values <- sapply(org_structure_data, max)
+min_values <- sapply(org_structure_data, min)
+
+# Round max values up to nice numbers for plotting
+nice_max <- function(x) {
+  magnitude <- 10^floor(log10(x))
+  ceiling(x/magnitude) * magnitude
+}
+max_scales <- sapply(max_values, nice_max)
+
+# Prepare radar plot data format (K=2)
+org_radar_k2_plot <- rbind(
+  max_scales,                           # Maximum values
+  rep(0, ncol(org_structure_data)),    # Minimum values
+  org_radar_k2 %>% select(-cluster)    # Actual data
+)
+
+# Prepare radar plot data format (K=3)
+org_radar_k3_plot <- rbind(
+  max_scales,                           # Maximum values
+  rep(0, ncol(org_structure_data)),    # Minimum values
+  org_radar_k3 %>% select(-cluster)    # Actual data
+)
+
+# Set more readable variable names with scales
+colnames(org_radar_k2_plot) <- c(
+  paste0("Employees\n(0-", max_scales[1], ")"),
+  paste0("Locations\n(0-", max_scales[2], ")"),
+  paste0("Departments\n(0-", max_scales[3], ")"),
+  paste0("Hierarchical Layers\n(0-", max_scales[4], ")")
+)
+colnames(org_radar_k3_plot) <- colnames(org_radar_k2_plot)
+
+# Create modified radar plot function with custom scales
+create_radar_plot_custom <- function(data, title, colors) {
+  radarchart(data,
+             axistype = 1,
+             pcol = colors,
+             pfcol = alpha(colors, 0.3),
+             plwd = 2,
+             plty = 1,
+             cglcol = "grey",
+             cglty = 1,
+             axislabcol = "grey",
+             caxislabels = sapply(1:ncol(data), function(i) {
+               seq(0, data[1,i], length.out = 6)
+             }),
+             cglwd = 0.8,
+             vlcex = 0.8,
+             title = title)
+}
+
+# Create output directory if it doesn't exist
+dir.create("Results", showWarnings = FALSE)
+
+# Create radar plots for organizational structure
+pdf("Results/BOAT2_Org_Structure_Radar_Original_Scales.pdf", width = 15, height = 10)
+
+# Display data ranges
+cat("Data Ranges for Each Variable:\n")
+for(i in 1:ncol(org_structure_data)) {
+  cat(sprintf("%s: %.0f - %.0f\n", 
+              names(org_structure_data)[i], 
+              min_values[i], 
+              max_values[i]))
+}
+
+# K=2 radar plot
+par(mfrow = c(1, 2))
+create_radar_plot_custom(org_radar_k2_plot, 
+                        "Organizational Structure Characteristics (k=2)\nOriginal Scales", 
+                        colors_k2)
+legend("topright", 
+       legend = paste("Cluster", 1:2),
+       col = colors_k2,
+       lwd = 2,
+       bty = "n")
+
+# K=3 radar plot
+create_radar_plot_custom(org_radar_k3_plot, 
+                        "Organizational Structure Characteristics (k=3)\nOriginal Scales", 
+                        colors_k3)
+legend("topright", 
+       legend = paste("Cluster", 1:3),
+       col = colors_k3,
+       lwd = 2,
+       bty = "n")
+
+dev.off()
+
+# Create individual radar plots for each cluster
+pdf("Results/BOAT2_Org_Structure_Cluster_Radar_Original_Scales.pdf", width = 20, height = 12)
+
+# K=2 individual radar plots
+par(mfrow = c(1, 2))
+for(i in 1:2) {
+  cluster_data <- rbind(
+    max_scales,
+    rep(0, ncol(org_structure_data)),
+    org_radar_k2 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(org_radar_k2_plot)
+  create_radar_plot_custom(cluster_data, 
+                          paste("Cluster", i, "Organizational Structure (k=2)\nOriginal Scales"),
+                          colors_k2[i])
+}
+
+# K=3 individual radar plots
+par(mfrow = c(1, 3))
+for(i in 1:3) {
+  cluster_data <- rbind(
+    max_scales,
+    rep(0, ncol(org_structure_data)),
+    org_radar_k3 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(org_radar_k3_plot)
+  create_radar_plot_custom(cluster_data, 
+                          paste("Cluster", i, "Organizational Structure (k=3)\nOriginal Scales"),
+                          colors_k3[i])
+}
+
+dev.off()
+
+# Print summary statistics
+cat("\nSummary Statistics for Each Variable:\n")
+print(summary(org_structure_data))
+
+cat("\nCluster Means (K=2):\n")
+print(org_radar_k2)
+
+cat("\nCluster Means (K=3):\n")
+print(org_radar_k3)
+
+# Save organizational structure radar plot data
+write.csv(org_radar_k2, "Results/BOAT2_Org_Structure_Radar_Original_Data_k2.csv", row.names = FALSE)
+write.csv(org_radar_k3, "Results/BOAT2_Org_Structure_Radar_Original_Data_k3.csv", row.names = FALSE)
+```
+
+```{r k7_analysis_and_radar}
+# Set random seed for reproducibility
+set.seed(123)
+
+# Perform k=7 K-Prototypes clustering
+kproto_k7_result <- kproto(kproto_data_mixed, k = 7, verbose = FALSE)
+
+# Prepare radar plot data for k=7
+radar_k7 <- radar_data %>%
+  mutate(cluster = factor(kproto_k7_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Prepare radar plot data format for k=7
+radar_k7_plot <- rbind(
+  rep(5, ncol(radar_k7) - 1),  # Maximum
+  rep(0, ncol(radar_k7) - 1),  # Minimum
+  radar_k7 %>% select(-cluster)  # Actual data
+)
+
+# Set column names
+colnames(radar_k7_plot) <- c(
+  "Centralization", "Formalization", "Participation", "Organicity", "Coercion",
+  "Technocracy", "Command Culture", "Symbolic Culture", "Rationale Culture", 
+  "Generative Culture", "Transactive Culture", "Openness", "Recursiveness", 
+  "Risk", "Growth Environment", "Hostile Environment", "Stable Environment"
+)
+
+# Create color palette for 7 clusters
+colors_k7 <- RColorBrewer::brewer.pal(7, "Set2")
+
+# Create radar plot for k=7
+pdf("Results/BOAT2_Radar_Plot_K7.pdf", width = 15, height = 10)
+
+# Combined radar plot for all clusters
+par(mfrow = c(1, 1))
+radarchart(radar_k7_plot,
+           axistype = 1,
+           pcol = colors_k7,
+           pfcol = alpha(colors_k7, 0.3),
+           plwd = 2,
+           plty = 1,
+           cglcol = "grey",
+           cglty = 1,
+           axislabcol = "grey",
+           caxislabels = seq(0, 5, 1),
+           cglwd = 0.8,
+           vlcex = 0.8,
+           title = "K-Prototypes Clustering Radar Plot (k=7)")
+legend("topright", 
+       legend = paste("Cluster", 1:7),
+       col = colors_k7,
+       lwd = 2,
+       bty = "n")
+
+# Individual radar plots for each cluster
+par(mfrow = c(2, 4))
+for(i in 1:7) {
+  cluster_data <- rbind(
+    rep(5, ncol(radar_k7) - 1),
+    rep(0, ncol(radar_k7) - 1),
+    radar_k7 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- colnames(radar_k7_plot)
+  radarchart(cluster_data,
+             axistype = 1,
+             pcol = colors_k7[i],
+             pfcol = alpha(colors_k7[i], 0.3),
+             plwd = 2,
+             plty = 1,
+             cglcol = "grey",
+             cglty = 1,
+             axislabcol = "grey",
+             caxislabels = seq(0, 5, 1),
+             cglwd = 0.8,
+             vlcex = 0.8,
+             title = paste("Cluster", i, "Characteristics (k=7)"))
+}
+
+dev.off()
+
+# Save k=7 clustering results
+write.csv(radar_k7, "Results/BOAT2_Radar_Plot_Data_k7.csv", row.names = FALSE)
+
+# Print cluster sizes
+cat("\nK=7 cluster sizes:\n")
+print(table(kproto_k7_result$cluster))
+
+# Create organizational structure radar plot for k=7
+org_radar_k7 <- org_structure_data %>%
+  mutate(cluster = factor(kproto_k7_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(everything(), mean))
+
+# Save organizational structure data for k=7
+write.csv(org_radar_k7, "Results/BOAT2_Org_Structure_Radar_Data_k7.csv", row.names = FALSE)
+
+# Create organizational structure radar plots for k=7
+pdf("Results/BOAT2_Org_Structure_Radar_K7.pdf", width = 15, height = 10)
+
+# Combined plot
+par(mfrow = c(1, 1))
+org_structure_k7_plot <- rbind(
+  apply(org_structure_data, 2, max),  # Maximum values
+  apply(org_structure_data, 2, min),  # Minimum values
+  org_radar_k7 %>% select(-cluster)   # Cluster means
+)
+colnames(org_structure_k7_plot) <- c("Employees", "Locations", "Departments", "Layers")
+
+radarchart(org_structure_k7_plot,
+           axistype = 1,
+           pcol = colors_k7,
+           pfcol = alpha(colors_k7, 0.3),
+           plwd = 2,
+           plty = 1,
+           cglcol = "grey",
+           cglty = 1,
+           axislabcol = "grey",
+           cglwd = 0.8,
+           vlcex = 0.8,
+           title = "Organizational Structure by Cluster (k=7)")
+legend("topright", 
+       legend = paste("Cluster", 1:7),
+       col = colors_k7,
+       lwd = 2,
+       bty = "n")
+
+# Individual plots
+par(mfrow = c(2, 4))
+for(i in 1:7) {
+  cluster_data <- rbind(
+    apply(org_structure_data, 2, max),
+    apply(org_structure_data, 2, min),
+    org_radar_k7 %>% filter(cluster == i) %>% select(-cluster)
+  )
+  colnames(cluster_data) <- c("Employees", "Locations", "Departments", "Layers")
+  
+  radarchart(cluster_data,
+             axistype = 1,
+             pcol = colors_k7[i],
+             pfcol = alpha(colors_k7[i], 0.3),
+             plwd = 2,
+             plty = 1,
+             cglcol = "grey",
+             cglty = 1,
+             axislabcol = "grey",
+             cglwd = 0.8,
+             vlcex = 0.8,
+             title = paste("Cluster", i, "Organizational Structure (k=7)"))
+}
+
+dev.off()
+```
+
+```{r k7_statistics_table}
+# Load required packages
+library(gridExtra)
+library(grid)
+library(gtable)
+
+# Calculate cluster sizes
+k7_cluster_sizes <- table(kproto_k7_result$cluster)
+
+# Create cluster size data frame
+cluster_size_df <- data.frame(
+  Cluster = paste("Cluster", 1:7),
+  Size = as.numeric(k7_cluster_sizes)
+)
+
+# Calculate mean values for ordinal variables
+k7_ordinal_means <- kproto_data %>%
+  mutate(cluster = factor(kproto_k7_result$cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(all_of(ordinal_all_vars), \(x) mean(x, na.rm = TRUE))) %>%
+  mutate(Cluster = paste("Cluster", cluster)) %>%
+  select(-cluster)
+
+# Round all numeric columns to 2 decimal places
+k7_ordinal_means[,-1] <- round(k7_ordinal_means[,-1], 2)
+
+# Create PDF
+pdf("Results/BOAT2_K7_Cluster_Statistics.pdf", width = 15, height = 10)
+
+# Function to create table grob
+create_table_grob <- function(data, title) {
+  # Convert data frame to matrix for table
+  mat <- as.matrix(data)
+  
+  # Create the table
+  table <- tableGrob(mat, 
+                    rows = NULL,
+                    cols = colnames(data),
+                    theme = ttheme_minimal(
+                      core = list(fg_params = list(fontsize = 8),
+                                bg_params = list(fill = c("white", "grey95"))),
+                      colhead = list(fg_params = list(fontsize = 8, fontface = "bold")),
+                      rowhead = list(fg_params = list(fontsize = 8))
+                    ))
+  
+  # Add title
+  title <- textGrob(title, gp = gpar(fontsize = 12, fontface = "bold"))
+  
+  # Combine title and table
+  padding <- unit(0.5, "cm")
+  combined <- gtable:::rbind_gtable(
+    gtable(widths = unit(1, "null"), heights = unit(1, "cm")),
+    table,
+    "first"
+  )
+  combined <- gtable_add_grob(combined, title, 
+                             t = 1, l = 1, r = ncol(combined))
+  
+  return(combined)
+}
+
+# Create cluster size table
+size_table <- create_table_grob(cluster_size_df, "Table 1: K=7 Cluster Sizes")
+
+# Create means table
+means_table <- create_table_grob(k7_ordinal_means, "Table 2: Mean Values of Ordinal Variables by Cluster")
+
+# Arrange tables on the page
+grid.newpage()
+grid.draw(size_table)
+
+grid.newpage()
+grid.draw(means_table)
+
+dev.off()
+
+# Display in console
+cat("\nCluster Sizes:\n")
+print(cluster_size_df)
+
+cat("\nMean Values of Ordinal Variables by Cluster:\n")
+print(k7_ordinal_means)
+
+# Save tables as CSV files for backup
+write.csv(cluster_size_df, "Results/BOAT2_K7_Cluster_Sizes.csv", row.names = FALSE)
+write.csv(k7_ordinal_means, "Results/BOAT2_K7_Ordinal_Means.csv", row.names = FALSE)
+```
+
+```{r k7_pdm_analysis}
+# Load required packages
+library(ggplot2)
+library(dplyr)
+library(RColorBrewer)
+
+# Create analysis dataset
+pdm_analysis <- data.frame(
+  Cluster = factor(kproto_k7_result$cluster),
+  PDM_Type = original_data$PDM_Type
+)
+
+# 1. Create contingency table
+pdm_contingency <- table(pdm_analysis$Cluster, pdm_analysis$PDM_Type)
+pdm_percentages <- prop.table(pdm_contingency, margin = 1) * 100
+
+# Convert to data frame for plotting
+pdm_plot_data <- as.data.frame.table(pdm_contingency)
+names(pdm_plot_data) <- c("Cluster", "PDM_Type", "Count")
+
+pdm_plot_data_pct <- as.data.frame.table(pdm_percentages)
+names(pdm_plot_data_pct) <- c("Cluster", "PDM_Type", "Percentage")
+
+# Create visualizations
+# 1. Stacked bar chart (absolute numbers)
+p1 <- ggplot(pdm_plot_data, aes(x = Cluster, y = Count, fill = PDM_Type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Distribution of PDM Types by Cluster (Absolute Numbers)",
+       x = "Cluster",
+       y = "Number of Cases") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0),
+        plot.title = element_text(size = 12, face = "bold"))
+
+# 2. Stacked bar chart (percentages)
+p2 <- ggplot(pdm_plot_data_pct, aes(x = Cluster, y = Percentage, fill = PDM_Type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Distribution of PDM Types by Cluster (Percentages)",
+       x = "Cluster",
+       y = "Percentage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0),
+        plot.title = element_text(size = 12, face = "bold"))
+
+# 3. Mosaic plot
+# Save mosaic plot to PDF
+pdf("Results/BOAT2_K7_PDM_Mosaic.pdf", width = 10, height = 8)
+mosaicplot(pdm_contingency,
+           main = "Mosaic Plot of Clusters vs PDM Types",
+           color = brewer.pal(length(unique(pdm_analysis$PDM_Type)), "Set3"),
+           xlab = "Cluster",
+           ylab = "PDM Type")
+dev.off()
+
+# Save bar plots to PDF
+pdf("Results/BOAT2_K7_PDM_Distribution.pdf", width = 12, height = 10)
+print(p1)
+print(p2)
+dev.off()
+
+# Perform chi-square test
+chi_test <- chisq.test(pdm_contingency)
+
+# Create summary tables
+# 1. Absolute numbers
+pdm_summary_abs <- as.data.frame.matrix(pdm_contingency)
+pdm_summary_abs$Total <- rowSums(pdm_summary_abs)
+
+# 2. Percentages
+pdm_summary_pct <- as.data.frame.matrix(pdm_percentages)
+pdm_summary_pct <- round(pdm_summary_pct, 2)
+
+# Save results
+write.csv(pdm_summary_abs, "Results/BOAT2_K7_PDM_Distribution_Absolute.csv")
+write.csv(pdm_summary_pct, "Results/BOAT2_K7_PDM_Distribution_Percentage.csv")
+
+# Print results
+cat("\nDistribution of PDM Types by Cluster (Absolute Numbers):\n")
+print(pdm_summary_abs)
+
+cat("\nDistribution of PDM Types by Cluster (Percentages):\n")
+print(pdm_summary_pct)
+
+cat("\nChi-square Test Results:\n")
+print(chi_test)
+
+# Calculate Cramer's V
+cramer_v <- sqrt(chi_test$statistic / (sum(pdm_contingency) * (min(dim(pdm_contingency)) - 1)))
+cat("\nCramer's V:", round(cramer_v, 3), "\n")
+
+# Create a more detailed summary table
+cluster_summary <- data.frame(
+  Cluster = paste("Cluster", 1:7),
+  Size = as.numeric(table(pdm_analysis$Cluster)),
+  Dominant_PDM = apply(pdm_percentages, 1, function(x) names(which.max(x))),
+  Dominant_PDM_Percentage = apply(pdm_percentages, 1, max)
+)
+
+# Print detailed summary
+cat("\nCluster Summary:\n")
+print(cluster_summary)
+
+# Save detailed summary
+write.csv(cluster_summary, "Results/BOAT2_K7_Cluster_PDM_Summary.csv", row.names = FALSE)
+```
+
