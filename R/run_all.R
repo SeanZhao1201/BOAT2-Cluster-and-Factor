@@ -1,6 +1,29 @@
 # BOAT2 Cluster and Factor Analysis - Main Script
 # This script runs all analysis steps in sequence
 
+# Automatically set working directory to project root
+# Try different methods to ensure it works in different environments
+tryCatch({
+  # Method 1: If run in RStudio
+  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    script_path <- dirname(rstudioapi::getSourceEditorContext()$path)
+    setwd(dirname(script_path))  # Set to parent directory of R folder
+    cat("Working directory set using RStudio API to:", getwd(), "\n")
+  }
+}, error = function(e) {
+  # Method 2: If not in RStudio, try using this script's location
+  script_path <- getSrcDirectory(function(){})
+  if (length(script_path) > 0 && script_path != "") {
+    setwd(dirname(script_path))
+    cat("Working directory set using script location to:", getwd(), "\n")
+  } else {
+    # Method 3: Assume the script is run from the project root or set manually
+    cat("Could not automatically set working directory.\n")
+    cat("Current working directory is:", getwd(), "\n")
+    cat("Make sure you're running this from the project root directory.\n")
+  }
+})
+
 # Record start time
 start_time <- Sys.time()
 cat("Starting BOAT2 Cluster and Factor Analysis...\n")

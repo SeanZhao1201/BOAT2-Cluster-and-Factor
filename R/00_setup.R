@@ -1,6 +1,37 @@
 # BOAT2 Cluster and Factor Analysis - Setup Script
 # This script loads all required libraries and defines common utility functions
 
+# Automatically set working directory to project root
+# This ensures that all paths work correctly regardless of where the script is called from
+tryCatch({
+  # Method 1: If this script is sourced from run_all.R, maintain that directory
+  # Check if script was already sourced and working directory is set
+  if(file.exists("R/00_setup.R") && file.exists("data") && file.exists("results")) {
+    cat("Working directory already correctly set to:", getwd(), "\n")
+  } else {
+    # Method 2: If run in RStudio directly
+    if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+      script_path <- dirname(rstudioapi::getSourceEditorContext()$path)
+      setwd(dirname(script_path))  # Set to parent directory of R folder
+      cat("Working directory set using RStudio API to:", getwd(), "\n")
+    } else {
+      # Method 3: Try using this script's location
+      script_path <- getSrcDirectory(function(){})
+      if (length(script_path) > 0 && script_path != "") {
+        setwd(dirname(script_path))
+        cat("Working directory set using script location to:", getwd(), "\n")
+      } else {
+        cat("Could not automatically set working directory.\n")
+        cat("Current working directory is:", getwd(), "\n")
+        cat("Make sure to manually set working directory to project root.\n")
+      }
+    }
+  }
+}, error = function(e) {
+  cat("Error trying to set working directory:", e$message, "\n")
+  cat("Current working directory is:", getwd(), "\n")
+})
+
 # 1. Required Libraries -------------------------------------------------------
 
 # Define function to check and install packages
@@ -44,9 +75,15 @@ dimensionality_packages <- c(
   "umap"         # Non-linear dimensionality reduction
 )
 
+# Additional utility packages
+utility_packages <- c(
+  "rstudioapi"   # RStudio API for working directory setting
+)
+
 # Combine all packages
 all_packages <- c(data_packages, visualization_packages, 
-                 clustering_packages, dimensionality_packages)
+                 clustering_packages, dimensionality_packages,
+                 utility_packages)
 
 # Check and install all packages
 for (pkg in all_packages) {
