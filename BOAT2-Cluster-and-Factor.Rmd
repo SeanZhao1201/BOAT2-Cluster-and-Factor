@@ -439,104 +439,128 @@ write.csv(pdm_cluster_table, "BOAT2_PDM_Cluster_Table.csv")
 
 ### 数据准备
 ```{r kproto_data_prep}
-# 为K-Prototypes聚类准备的数据集
+# Dataset preparation for K-Prototypes clustering
 kproto_data <- original_cluster_vars
 
-# 显示数据结构
+# Display data structure
 str(kproto_data)
 
-# 创建用于K-Prototypes的混合数据集
+# Create mixed dataset for K-Prototypes
 kproto_data_mixed <- kproto_data
-# 将有序变量转换为有序因子
+# Convert ordinal variables to ordered factors
 kproto_data_mixed[ordinal_all_vars] <- lapply(
   kproto_data_mixed[ordinal_all_vars], 
   function(x) ordered(round(x), levels = 1:5)
 )
 
-# 计算Gower距离矩阵（适用于混合数据类型）
+# Calculate Gower distance matrix (suitable for mixed data types)
 kproto_gower_dist <- daisy(kproto_data_mixed, metric = "gower")
 ```
 
-### 确定最佳聚类数量
+### Determining Optimal Number of Clusters
 
-#### 1. 轮廓分析（使用Gower距离）
+#### 1. Silhouette Analysis (using Gower Distance)
 ```{r kproto_silhouette}
-# 设置最大聚类数
+# Set maximum number of clusters
 kproto_max_k <- 8
 kproto_sil_width <- numeric(kproto_max_k - 1)
 
-# 对不同的k值，使用PAM算法创建聚类并计算轮廓系数
+# For different k values, create clusters using PAM algorithm and calculate silhouette coefficients
 for(k in 2:kproto_max_k) {
   pam_fit <- pam(kproto_gower_dist, k = k, diss = TRUE)
   kproto_sil_width[k-1] <- pam_fit$silinfo$avg.width
 }
 
-# 绘制轮廓宽度图
+# Plot silhouette width
 kproto_silhouette_plot <- ggplot(
   data.frame(k = 2:kproto_max_k, sil_width = kproto_sil_width), 
   aes(x = k, y = sil_width)
 ) +
   geom_line() +
   geom_point() +
-  labs(title = "基于Gower距离的轮廓分析",
-       x = "聚类数量 (k)",
-       y = "平均轮廓宽度") +
+  labs(title = "Silhouette Analysis based on Gower Distance",
+       x = "Number of Clusters (k)",
+       y = "Average Silhouette Width") +
   theme_minimal()
 
 print(kproto_silhouette_plot)
 
-# 显示最佳k值（基于最大轮廓宽度）
+# Display optimal k value (based on maximum silhouette width)
 kproto_best_k_sil <- which.max(kproto_sil_width) + 1
-cat("基于轮廓分析的最佳聚类数量:", kproto_best_k_sil, "\n")
+cat("Optimal number of clusters based on silhouette analysis:", kproto_best_k_sil, "\n")
 ```
 
-#### 2. 肘部法则（使用K-Prototypes）
+#### 2. Elbow Method (using K-Prototypes)
 ```{r kproto_elbow}
-# 设置随机种子以确保结果可重现
+# Set random seed for reproducibility
 set.seed(123)
 
-# 对不同的k值，计算K-Prototypes的总簇内平方和
-kproto_wss <- numeric(kproto_max_k - 1)
+# 定义要测试的k值范围
+k_values <- 2:kproto_max_k
 
-for(k in 2:kproto_max_k) {
+# 初始化WSS向量
+kproto_wss <- numeric(length(k_values))
+
+# 计算各k值的WSS
+for(i in seq_along(k_values)) {
+  k <- k_values[i]
   kproto_result <- kproto(kproto_data_mixed, k = k, verbose = FALSE)
-  kproto_wss[k-1] <- kproto_result$tot.withinss
+  kproto_wss[i] <- kproto_result$tot.withinss
 }
 
-# 绘制肘部图
+# 找出基于肘部法则的最佳k值
+# 可以使用简单的视觉判断或二阶差分方法
+k_diff <- diff(diff(kproto_wss))
+kproto_best_k_elbow <- k_values[which(k_diff > 0)[1] + 1]
+if(is.na(kproto_best_k_elbow)) {
+  kproto_best_k_elbow <- 3  # 基于视觉判断的默认值
+}
+
+# 视觉最佳k值
+kproto_best_k_visual <- 7
+
+# 创建肘部图
 kproto_elbow_plot <- ggplot(
-  data.frame(k = 2:kproto_max_k, wss = kproto_wss), 
+  data.frame(k = k_values, wss = kproto_wss), 
   aes(x = k, y = wss)
 ) +
   geom_line() +
-  geom_point() +
-  labs(title = "K-Prototypes的肘部法则",
-       x = "聚类数量 (k)",
-       y = "总簇内平方和") +
-  theme_minimal()
+  geom_point(size = 3) +
+  # 添加视觉最佳k值的标记
+  geom_vline(xintercept = kproto_best_k_visual, linetype = "dashed", color = "red") +
+  annotate("text", x = kproto_best_k_visual + 0.3, 
+           y = min(kproto_wss) + (max(kproto_wss) - min(kproto_wss)) * 0.1, 
+           label = paste("Best k =", kproto_best_k_visual), 
+           color = "red") +
+  labs(title = "K-Prototypes Elbow Plot",
+       x = "Number of Clusters (k)",
+       y = "Total Within-Cluster Sum of Squares") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_x_continuous(breaks = k_values)
 
+# 显示图表
 print(kproto_elbow_plot)
 
-# 确定肘部点（通过二阶导数）
-kproto_best_k_elbow <- which(diff(diff(kproto_wss)) > 0)[1] + 1
-if(is.na(kproto_best_k_elbow)) {
-  kproto_best_k_elbow <- 2  # 默认值，如果无法确定肘部
-}
-cat("基于肘部法则的最佳聚类数量:", kproto_best_k_elbow, "\n")
+ggsave("Results/BOAT2_Elbow_Plot.pdf", plot = kproto_elbow_plot, width = 8, height = 6)
 ```
 
-#### 3. Gap统计量
+#### 3. Gap Statistic
 ```{r kproto_gap}
-# 使用clusGap函数计算Gap统计量
-# 注意：这可能需要较长的计算时间
+# Calculate Gap statistic using clusGap function
+# Note: This may require significant computation time
 kproto_gap_stat <- clusGap(
   kproto_data, 
   FUN = pam, 
   K.max = kproto_max_k, 
-  B = 50  # B是自举样本数量，生产环境可设为更高值
+  B = 50  # B is the number of bootstrap samples, can be set higher in production
 )
 
-# 绘制Gap统计量图
+# Plot Gap statistic
 kproto_gap_plot <- ggplot(
   data.frame(
     k = 1:kproto_max_k, 
@@ -548,49 +572,49 @@ kproto_gap_plot <- ggplot(
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = gap - se, ymax = gap + se), width = 0.1) +
-  labs(title = "Gap统计量分析",
-       x = "聚类数量 (k)",
-       y = "Gap统计量（含标准误）") +
+  labs(title = "Gap Statistic Analysis",
+       x = "Number of Clusters (k)",
+       y = "Gap Statistic (with SE)") +
   theme_minimal()
 
 print(kproto_gap_plot)
 
-# 使用firstSEmax方法确定最佳k值
+# Determine optimal k using firstSEmax method
 kproto_best_k_gap <- maxSE(
   kproto_gap_stat$Tab[,"gap"], 
   kproto_gap_stat$Tab[,"SE.sim"], 
   method = "firstSEmax"
 )
-cat("基于Gap统计量的最佳聚类数量:", kproto_best_k_gap, "\n")
+cat("Optimal number of clusters based on Gap statistic:", kproto_best_k_gap, "\n")
 ```
 
-#### 4. 聚类稳定性分析
+#### 4. Cluster Stability Analysis
 ```{r kproto_stability}
-# 设置随机种子
+# Set random seed
 set.seed(456)
 
-# 进行多次抽样和聚类以评估稳定性
+# Perform multiple sampling and clustering to assess stability
 kproto_n_samples <- 10
 kproto_stability_results <- data.frame(k = integer(), ari = numeric())
 
-for(k in 2:5) {  # 关注k=2到k=5
+for(k in 2:5) {  # Focus on k=2 to k=5
   ari_values <- numeric(kproto_n_samples)
   
   for(i in 1:kproto_n_samples) {
-    # 随机抽取80%的数据
+    # Randomly sample 80% of the data
     sample_idx <- sample(1:nrow(kproto_data_mixed), 
                          size = floor(0.8 * nrow(kproto_data_mixed)))
     sample_data <- kproto_data_mixed[sample_idx, ]
     
-    # 对抽样数据进行聚类
+    # Cluster the sampled data
     kproto_sample <- kproto(sample_data, k = k, verbose = FALSE)
     
-    # 对完整数据进行聚类
+    # Cluster the full data
     kproto_full <- kproto(kproto_data_mixed, k = k, verbose = FALSE)
     
-    # 计算调整兰德指数 (ARI)
-    # 注意：我们只能比较样本中的观测
-    # adjustedRandIndex函数来自mclust包
+    # Calculate Adjusted Rand Index (ARI)
+    # Note: We can only compare observations in the sample
+    # adjustedRandIndex function is from mclust package
     common_idx <- sample_idx
     ari <- adjustedRandIndex(kproto_sample$cluster, 
                              kproto_full$cluster[common_idx])
@@ -603,33 +627,33 @@ for(k in 2:5) {  # 关注k=2到k=5
   )
 }
 
-# 绘制稳定性结果
+# Plot stability results
 kproto_stability_plot <- ggplot(kproto_stability_results, 
                                aes(x = k, y = ari)) +
   geom_line() +
   geom_point() +
-  labs(title = "聚类稳定性分析",
-       x = "聚类数量 (k)",
-       y = "平均调整兰德指数 (ARI)") +
+  labs(title = "Cluster Stability Analysis",
+       x = "Number of Clusters (k)",
+       y = "Average Adjusted Rand Index (ARI)") +
   ylim(0, 1) +
   theme_minimal()
 
 print(kproto_stability_plot)
 
-# 输出各k值的稳定性结果
-cat("各k值的聚类稳定性（基于调整兰德指数）:\n")
+# Output stability results for each k value
+cat("Cluster stability for each k value (based on Adjusted Rand Index):\n")
 print(kproto_stability_results)
 
-# 确定最佳k值（基于最高稳定性）
+# Determine optimal k value (based on highest stability)
 kproto_best_k_stability <- kproto_stability_results$k[
   which.max(kproto_stability_results$ari)
 ]
-cat("基于聚类稳定性的最佳聚类数量:", kproto_best_k_stability, "\n")
+cat("Optimal number of clusters based on stability analysis:", kproto_best_k_stability, "\n")
 ```
 
-#### 5. 综合评估最佳聚类数量
+#### 5. Combined Evaluation of Optimal Cluster Number
 ```{r kproto_combined}
-# 综合上述方法的结果
+# Combine results from the above methods
 kproto_methods_df <- data.frame(
   K = 2:kproto_max_k,
   Silhouette = kproto_sil_width,
@@ -637,43 +661,43 @@ kproto_methods_df <- data.frame(
   Gap = kproto_gap_stat$Tab[2:kproto_max_k,"gap"]
 )
 
-# 标准化指标以便比较
+# Standardize metrics for comparison
 kproto_methods_scaled <- kproto_methods_df %>%
   mutate(
     Silhouette_scaled = scale(Silhouette),
-    WSS_scaled = -scale(WSS),  # 负号使得较小的WSS有较高的标准化分数
+    WSS_scaled = -scale(WSS),  # Negative sign makes smaller WSS have higher standardized score
     Gap_scaled = scale(Gap)
   )
 
-# 计算平均得分
+# Calculate average scores
 kproto_methods_scaled <- kproto_methods_scaled %>%
   mutate(
     Average_score = (Silhouette_scaled + WSS_scaled + Gap_scaled) / 3
   )
 
-# 绘制综合得分
+# Plot combined scores
 kproto_combined_plot <- ggplot(kproto_methods_scaled, 
                               aes(x = K, y = Average_score)) +
   geom_line() +
   geom_point() +
   geom_text(aes(label = round(Average_score, 2)), vjust = -1) +
-  labs(title = "各聚类数量的综合评分",
-       x = "聚类数量 (k)",
-       y = "综合评分（标准化）") +
+  labs(title = "Combined Scores for Different Cluster Numbers",
+       x = "Number of Clusters (k)",
+       y = "Average Score (Standardized)") +
   theme_minimal()
 
 print(kproto_combined_plot)
 
-# 找出得分最高的k值
+# Find the k value with the highest score
 kproto_best_k_combined <- kproto_methods_scaled$K[
   which.max(kproto_methods_scaled$Average_score)
 ]
-cat("基于综合评分的最优聚类数量:", kproto_best_k_combined, "\n")
+cat("Optimal number of clusters based on combined evaluation:", kproto_best_k_combined, "\n")
 
-# 创建一个小表格来总结各种方法的结果
+# Create a small table summarizing results from different methods
 kproto_summary_table <- data.frame(
-  Method = c("轮廓分析(Gower)", "肘部法则", "Gap统计量", 
-             "聚类稳定性", "综合评分"),
+  Method = c("Silhouette Analysis", "Elbow Method", "Gap Statistic", 
+             "Cluster Stability", "Combined Scores"),
   Suggested_K = c(
     kproto_best_k_sil,
     kproto_best_k_elbow,
@@ -683,69 +707,69 @@ kproto_summary_table <- data.frame(
   )
 )
 
-# 输出摘要表
+# Output summary table
 print(kproto_summary_table)
 ```
 
-## K-Prototypes聚类实现
-基于前面的分析，我们选择使用K=2和K=3进行K-Prototypes聚类，并比较结果。
+## K-Prototypes Clustering Implementation
+Based on the previous analysis, we select K=2 and K=3 for K-Prototypes clustering and compare the results.
 
 ```{r kprototypes_clustering}
-# 设置随机种子以确保结果可重现
+# Set random seed for reproducibility
 set.seed(123)
 
-# 执行k=2和k=3的K-Prototypes聚类
+# Perform K-Prototypes clustering with k=2 and k=3
 kproto_k2_result <- kproto(kproto_data_mixed, k = 2, verbose = FALSE)
 kproto_k3_result <- kproto(kproto_data_mixed, k = 3, verbose = FALSE)
 
-# 创建包含两种聚类结果的比较数据集
+# Create comparison dataset with both clustering results
 kproto_comparison_data <- kproto_data %>%
   mutate(
     kproto_cluster_k2 = factor(kproto_k2_result$cluster),
     kproto_cluster_k3 = factor(kproto_k3_result$cluster)
   )
 
-# 添加ID和PDM类型用于分析
+# Add ID and PDM type for analysis
 kproto_full_results <- cbind(
   ID = original_data$ID,
   PDM_Type = original_data$PDM_Type,
   kproto_comparison_data
 )
 
-# 保存K-Prototypes聚类结果
+# Save K-Prototypes clustering results
 write.csv(kproto_full_results, "Results/BOAT2_KProto_Clustering_Results.csv", row.names = FALSE)
 
-# 创建数值变量的可视化比较
+# Create visualizations for numerical variables
 kproto_numerical_plots <- list()
 for(var in numerical_org_vars) {
-  # K=2箱线图
+  # K=2 boxplot
   p1 <- ggplot(
     kproto_comparison_data, 
     aes_string(x = "kproto_cluster_k2", y = var, fill = "kproto_cluster_k2")
   ) +
     geom_boxplot() +
     scale_fill_viridis_d() +
-    labs(title = paste(var, "- K=2"), x = "聚类", y = var) +
+    labs(title = paste(var, "- K=2"), x = "Cluster", y = var) +
     theme_minimal() +
     theme(legend.position = "none")
   
-  # K=3箱线图
+  # K=3 boxplot
   p2 <- ggplot(
     kproto_comparison_data, 
     aes_string(x = "kproto_cluster_k3", y = var, fill = "kproto_cluster_k3")
   ) +
     geom_boxplot() +
     scale_fill_viridis_d() +
-    labs(title = paste(var, "- K=3"), x = "聚类", y = var) +
+    labs(title = paste(var, "- K=3"), x = "Cluster", y = var) +
     theme_minimal() +
     theme(legend.position = "none")
   
   kproto_numerical_plots[[var]] <- grid.arrange(p1, p2, ncol = 2)
 }
 
-# 创建有序变量的聚类特征热图
+# Create heatmap for ordinal variable cluster characteristics
 kproto_characteristics <- bind_rows(
-  # K=2特征
+  # K=2 characteristics
   kproto_comparison_data %>%
     group_by(kproto_cluster_k2) %>%
     summarise(across(all_of(ordinal_all_vars), mean)) %>%
@@ -760,7 +784,7 @@ kproto_characteristics <- bind_rows(
     ) %>%
     select(-kproto_cluster_k2),
   
-  # K=3特征
+  # K=3 characteristics
   kproto_comparison_data %>%
     group_by(kproto_cluster_k3) %>%
     summarise(across(all_of(ordinal_all_vars), mean)) %>%
@@ -776,7 +800,7 @@ kproto_characteristics <- bind_rows(
     select(-kproto_cluster_k3)
 )
 
-# 创建热图
+# Create heatmap
 kproto_heatmap <- ggplot(
   kproto_characteristics, 
   aes(
@@ -789,33 +813,33 @@ kproto_heatmap <- ggplot(
   scale_fill_viridis() +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "K-Prototypes聚类特征热图",
-       x = "变量",
-       y = "聚类")
+  labs(title = "K-Prototypes Cluster Characteristics Heatmap",
+       x = "Variables",
+       y = "Clusters")
 
-# 保存可视化结果
+# Save visualization results
 pdf("Results/BOAT2_KProto_Analysis.pdf", width = 15, height = 15)
 
-# 输出数值变量图
+# Output numerical variable plots
 for(plot in kproto_numerical_plots) {
   grid.arrange(plot)
 }
 
-# 输出热图
+# Output heatmap
 print(kproto_heatmap)
 
-# 输出轮廓图
+# Output silhouette plots
 par(mfrow = c(1,2))
 plot(silhouette(kproto_k2_result$cluster, 
                daisy(kproto_data_mixed, metric = "gower")), 
-     main = "K-Prototypes轮廓图 - K=2")
+     main = "K-Prototypes Silhouette Plot - K=2")
 plot(silhouette(kproto_k3_result$cluster, 
                daisy(kproto_data_mixed, metric = "gower")), 
-     main = "K-Prototypes轮廓图 - K=3")
+     main = "K-Prototypes Silhouette Plot - K=3")
 
 dev.off()
 
-# 分析K-Prototypes聚类与PDM类型的关系
+# Analyze relationship between K-Prototypes clustering and PDM types
 kproto_pdm_analysis <- data.frame(
   ID = original_data$ID,
   PDM_Type = original_data$PDM_Type,
@@ -823,66 +847,26 @@ kproto_pdm_analysis <- data.frame(
   KProto_k3 = kproto_k3_result$cluster
 )
 
-# 创建PDM类型与聚类的列联表
+# Create contingency tables for PDM types and clusters
 kproto_pdm_k2_table <- table(kproto_pdm_analysis$PDM_Type, kproto_pdm_analysis$KProto_k2)
 kproto_pdm_k3_table <- table(kproto_pdm_analysis$PDM_Type, kproto_pdm_analysis$KProto_k3)
 
-# 显示列联表
-cat("\nK-Prototypes (k=2) 与PDM类型的列联表:\n")
+# Display contingency tables
+cat("\nContingency table of K-Prototypes (k=2) and PDM types:\n")
 print(kproto_pdm_k2_table)
 
-cat("\nK-Prototypes (k=3) 与PDM类型的列联表:\n")
+cat("\nContingency table of K-Prototypes (k=3) and PDM types:\n")
 print(kproto_pdm_k3_table)
 
-# 计算各聚类中PDM类型的百分比
+# Calculate percentage of PDM types in each cluster
 kproto_pdm_k2_percent <- prop.table(kproto_pdm_k2_table, margin = 2) * 100
 kproto_pdm_k3_percent <- prop.table(kproto_pdm_k3_table, margin = 2) * 100
 
-cat("\n各K-Prototypes (k=2)聚类中PDM类型的百分比:\n")
+cat("\nPercentage of PDM types in each K-Prototypes (k=2) cluster:\n")
 print(round(kproto_pdm_k2_percent, 1))
 
-cat("\n各K-Prototypes (k=3)聚类中PDM类型的百分比:\n")
+cat("\nPercentage of PDM types in each K-Prototypes (k=3) cluster:\n")
 print(round(kproto_pdm_k3_percent, 1))
-
-# 可视化K-Prototypes聚类与PDM类型的关系
-kproto_pdm_df_k2 <- data.frame(
-  PDM_Type = kproto_pdm_analysis$PDM_Type,
-  Cluster = factor(kproto_pdm_analysis$KProto_k2)
-)
-
-kproto_pdm_df_k3 <- data.frame(
-  PDM_Type = kproto_pdm_analysis$PDM_Type,
-  Cluster = factor(kproto_pdm_analysis$KProto_k3)
-)
-
-# K=2 PDM分布图
-kproto_pdm_k2_plot <- ggplot(kproto_pdm_df_k2, aes(x = Cluster, fill = PDM_Type)) +
-  geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(title = "K-Prototypes (k=2)聚类中PDM类型的分布",
-       x = "聚类",
-       y = "比例") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set1", name = "项目交付方法")
-
-# K=3 PDM分布图
-kproto_pdm_k3_plot <- ggplot(kproto_pdm_df_k3, aes(x = Cluster, fill = PDM_Type)) +
-  geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(title = "K-Prototypes (k=3)聚类中PDM类型的分布",
-       x = "聚类",
-       y = "比例") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set1", name = "项目交付方法")
-
-# 保存PDM分析图表
-pdf("Results/BOAT2_KProto_PDM_Analysis.pdf", width = 10, height = 8)
-print(kproto_pdm_k2_plot)
-print(kproto_pdm_k3_plot)
-dev.off()
-
-# 保存聚类与PDM关系结果
-write.csv(kproto_pdm_analysis, "Results/BOAT2_KProto_PDM_Relationship.csv", row.names = FALSE)
 ```
 
 ## Detailed Cluster Analysis and Visualization
@@ -984,57 +968,56 @@ dev.off()
 This section performs PCA and UMAP analysis to visualize the clustering results in lower dimensions.
 
 ```{r dimensionality_reduction}
-# 准备降维分析数据
-# 确保数据集大小一致，合并前检查各数据集的行数
-cat("merged_data行数:", nrow(merged_data), "\n")
-cat("original_data行数:", nrow(original_data), "\n")
-cat("kproto_data行数:", nrow(kproto_data), "\n")
+# Prepare data for dimensionality reduction
+# Ensure consistent dataset sizes, check row counts of each dataset before merging
+cat("Number of rows in merged_data:", nrow(merged_data), "\n")
+cat("Number of rows in original_data:", nrow(original_data), "\n")
+cat("Number of rows in kproto_data:", nrow(kproto_data), "\n")
 
-# 使用ID作为键进行合并，确保所有数据行对齐
-# 只选择分析所需的变量
+# Use ID as key for merging to ensure all data rows align
+# Select only variables needed for analysis
 base_features <- merged_data %>%
   select(all_of(c(numerical_org_vars, merged_ordinal_vars)))
 
-# 获取聚类结果前，确保使用了相同的观测
-# 获取层次聚类结果，确保与ID正确对应
-# 创建包含ID的层次聚类结果数据框
+# Ensure the same observations are used before getting clustering results
+# Get hierarchical clustering results, ensuring correct correspondence with IDs
 hierarchical_results <- data.frame(
-  ID = ids,  # 层次聚类时使用的ID
+  ID = ids,  # IDs used in hierarchical clustering
   hier_cluster = factor(cutree(hc_ward, k = 3))
 )
 
-# 获取K-Prototypes聚类结果，确保与ID正确对应
+# Get K-Prototypes clustering results, ensuring correct correspondence with IDs
 kproto_results <- data.frame(
-  ID = original_data$ID,  # K-Prototypes聚类时使用的ID
+  ID = original_data$ID,  # IDs used in K-Prototypes clustering
   kproto_k2 = factor(kproto_k2_result$cluster),
   kproto_k3 = factor(kproto_k3_result$cluster)
 )
 
-# PDM类型数据
+# PDM type data
 pdm_data <- data.frame(
   ID = original_data$ID,
   PDM_Type = original_data$PDM_Type
 )
 
-# 合并所有数据，使用ID作为键
-# 先合并特征与层次聚类结果
+# Merge all data using ID as key
+# First merge features with hierarchical clustering results
 dim_reduction_merged <- base_features %>%
   mutate(ID = merged_data$ID) %>%
   inner_join(hierarchical_results, by = "ID") %>%
   inner_join(kproto_results, by = "ID") %>%
   inner_join(pdm_data, by = "ID")
 
-# 记录合并后的行数
-cat("合并后的数据行数:", nrow(dim_reduction_merged), "\n")
+# Record number of rows after merging
+cat("Number of rows after merging:", nrow(dim_reduction_merged), "\n")
 
-# 提取用于降维的特征数据(不含聚类结果和PDM)
+# Extract feature data for dimensionality reduction (excluding clustering results and PDM)
 dim_reduction_features <- dim_reduction_merged %>%
   select(-ID, -hier_cluster, -kproto_k2, -kproto_k3, -PDM_Type)
 
-# PCA分析
+# PCA analysis
 pca_result <- prcomp(dim_reduction_features, center = TRUE, scale. = TRUE)
 
-# 提取主成分得分并添加聚类标签和PDM信息
+# Extract principal component scores and add cluster labels and PDM information
 pca_scores <- as.data.frame(pca_result$x)
 pca_scores$ID <- dim_reduction_merged$ID
 pca_scores$hier_cluster <- dim_reduction_merged$hier_cluster
@@ -1042,15 +1025,14 @@ pca_scores$kproto_k2 <- dim_reduction_merged$kproto_k2
 pca_scores$kproto_k3 <- dim_reduction_merged$kproto_k3
 pca_scores$PDM_Type <- dim_reduction_merged$PDM_Type
 
-# UMAP降维
+# UMAP dimensionality reduction
 set.seed(123)
 umap_config <- umap.defaults
 umap_config$n_neighbors <- 15
 umap_config$min_dist <- 0.1
-
 umap_result <- umap(dim_reduction_features, config = umap_config)
 
-# 提取UMAP结果并添加聚类标签和PDM信息
+# Extract UMAP results and add cluster labels and PDM information
 umap_data <- as.data.frame(umap_result$layout)
 names(umap_data) <- c("UMAP1", "UMAP2")
 umap_data$ID <- dim_reduction_merged$ID
@@ -1059,174 +1041,130 @@ umap_data$kproto_k2 <- dim_reduction_merged$kproto_k2
 umap_data$kproto_k3 <- dim_reduction_merged$kproto_k3
 umap_data$PDM_Type <- dim_reduction_merged$PDM_Type
 
-# 检查处理后的数据维度
-cat("PCA结果行数:", nrow(pca_scores), "\n")
-cat("UMAP结果行数:", nrow(umap_data), "\n")
+# Check dimensions of processed data
+cat("Number of rows in PCA results:", nrow(pca_scores), "\n")
+cat("Number of rows in UMAP results:", nrow(umap_data), "\n")
 
-# 保存降维结果
+# Save dimensionality reduction results
 write.csv(pca_scores, "Results/BOAT2_PCA_Results.csv", row.names = FALSE)
 write.csv(umap_data, "Results/BOAT2_UMAP_Results.csv", row.names = FALSE)
 
-# 创建PCA可视化
-# 准备PCA绘图函数
-create_pca_plot <- function(data, color_var, title, color_palette = NULL) {
-  p <- ggplot(data, aes_string(x = "PC1", y = "PC2", color = color_var)) +
-    geom_point(size = 3, alpha = 0.7) +
-    labs(title = title,
-         x = paste0("PC1 (", round(summary(pca_result)$importance[2, 1] * 100, 1), "%)"),
-         y = paste0("PC2 (", round(summary(pca_result)$importance[2, 2] * 100, 1), "%)")) +
-    theme_minimal() +
-    theme(legend.position = "right")
+# Create PCA visualizations
+# Prepare PCA plotting function
+plot_pca <- function(data, color_var, title_prefix, 
+                    color_palette = "Set1", 
+                    size = 3, 
+                    alpha = 0.7) {
+  p <- ggplot(data, aes(x = PC1, y = PC2, color = !!sym(color_var))) +
+    geom_point(size = size, alpha = alpha) +
+    labs(title = paste(title_prefix, "- PCA"),
+         x = "PC1",
+         y = "PC2") +
+    theme_minimal()
   
-  if (!is.null(color_palette)) {
-    p <- p + scale_color_manual(values = color_palette)
-  } else {
+  if (color_palette == "Set1") {
+    p <- p + scale_color_brewer(palette = color_palette)
+  } else if (color_palette == "viridis") {
     p <- p + scale_color_viridis_d()
   }
   
   return(p)
 }
 
-# 创建UMAP绘图函数
-create_umap_plot <- function(data, color_var, title, color_palette = NULL) {
-  p <- ggplot(data, aes_string(x = "UMAP1", y = "UMAP2", color = color_var)) +
-    geom_point(size = 3, alpha = 0.7) +
-    labs(title = title,
+# Create PCA plots
+pca_hier_plot <- plot_pca(pca_scores, "hier_cluster", 
+                         "Hierarchical Clustering (k=3)")
+pca_kproto_k2_plot <- plot_pca(pca_scores, "kproto_k2", 
+                              "K-Prototypes (k=2)")
+pca_kproto_k3_plot <- plot_pca(pca_scores, "kproto_k3", 
+                              "K-Prototypes (k=3)")
+pca_pdm_plot <- plot_pca(pca_scores, "PDM_Type", 
+                        "Project Delivery Methods", 
+                        color_palette = "Set2")
+
+# Create UMAP visualizations
+# Prepare UMAP plotting function
+plot_umap <- function(data, color_var, title_prefix, 
+                     color_palette = "Set1", 
+                     size = 3, 
+                     alpha = 0.7) {
+  p <- ggplot(data, aes(x = UMAP1, y = UMAP2, color = !!sym(color_var))) +
+    geom_point(size = size, alpha = alpha) +
+    labs(title = paste(title_prefix, "- UMAP"),
          x = "UMAP1",
          y = "UMAP2") +
-    theme_minimal() +
-    theme(legend.position = "right")
+    theme_minimal()
   
-  if (!is.null(color_palette)) {
-    p <- p + scale_color_manual(values = color_palette)
-  } else {
+  if (color_palette == "Set1") {
+    p <- p + scale_color_brewer(palette = color_palette)
+  } else if (color_palette == "viridis") {
     p <- p + scale_color_viridis_d()
   }
   
   return(p)
 }
 
-# 颜色调色板
-hierarchical_colors <- RColorBrewer::brewer.pal(3, "Set1")
-kproto_k2_colors <- RColorBrewer::brewer.pal(2, "Set2")
-if (length(unique(as.character(dim_reduction_merged$kproto_k2))) < 3) {
-  kproto_k2_colors <- kproto_k2_colors[1:length(unique(as.character(dim_reduction_merged$kproto_k2)))]
-}
-kproto_k3_colors <- RColorBrewer::brewer.pal(3, "Set3")
-pdm_colors <- RColorBrewer::brewer.pal(max(3, length(unique(dim_reduction_merged$PDM_Type))), "Dark2")
+# Create UMAP plots
+umap_hier_plot <- plot_umap(umap_data, "hier_cluster", 
+                           "Hierarchical Clustering (k=3)")
+umap_kproto_k2_plot <- plot_umap(umap_data, "kproto_k2", 
+                                "K-Prototypes (k=2)")
+umap_kproto_k3_plot <- plot_umap(umap_data, "kproto_k3", 
+                                "K-Prototypes (k=3)")
+umap_pdm_plot <- plot_umap(umap_data, "PDM_Type", 
+                          "Project Delivery Methods", 
+                          color_palette = "Set2")
 
-# 创建PCA图
-pca_hierarchical <- create_pca_plot(pca_scores, "hier_cluster", 
-                                   "PCA - 层次聚类 (k=3)", hierarchical_colors)
-pca_kproto_k2 <- create_pca_plot(pca_scores, "kproto_k2", 
-                               "PCA - K-Prototypes聚类 (k=2)", kproto_k2_colors)
-pca_kproto_k3 <- create_pca_plot(pca_scores, "kproto_k3", 
-                               "PCA - K-Prototypes聚类 (k=3)", kproto_k3_colors)
-pca_pdm <- create_pca_plot(pca_scores, "PDM_Type", 
-                         "PCA - 项目交付方法类型", pdm_colors)
+# Save visualizations
+pdf("Results/BOAT2_Dimensionality_Reduction_Plots.pdf", width = 14, height = 12)
 
-# 创建UMAP图
-umap_hierarchical <- create_umap_plot(umap_data, "hier_cluster", 
-                                     "UMAP - 层次聚类 (k=3)", hierarchical_colors)
-umap_kproto_k2 <- create_umap_plot(umap_data, "kproto_k2", 
-                                 "UMAP - K-Prototypes聚类 (k=2)", kproto_k2_colors)
-umap_kproto_k3 <- create_umap_plot(umap_data, "kproto_k3", 
-                                 "UMAP - K-Prototypes聚类 (k=3)", kproto_k3_colors)
-umap_pdm <- create_umap_plot(umap_data, "PDM_Type", 
-                           "UMAP - 项目交付方法类型", pdm_colors)
+# PCA plots
+grid.arrange(pca_hier_plot, pca_kproto_k2_plot, 
+             pca_kproto_k3_plot, pca_pdm_plot, 
+             ncol = 2)
 
-# 创建PCA碎石图
-pca_scree <- fviz_eig(pca_result, 
-                     addlabels = TRUE, 
-                     ylim = c(0, 50),
-                     main = "PCA碎石图",
-                     barfill = "steelblue", 
-                     barcolor = "steelblue") +
-  theme_minimal()
-
-# 创建PCA载荷图
-pca_loadings <- fviz_pca_var(pca_result,
-                           col.var = "contrib",
-                           gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-                           repel = TRUE,
-                           title = "变量对主成分的贡献") +
-  theme_minimal()
-
-# 保存所有可视化结果
-pdf("Results/BOAT2_Dimensionality_Reduction_Analysis.pdf", width = 12, height = 10)
-
-# PCA可视化
-print(pca_hierarchical)
-print(pca_kproto_k2)
-print(pca_kproto_k3)
-print(pca_pdm)
-
-# UMAP可视化
-print(umap_hierarchical)
-print(umap_kproto_k2)
-print(umap_kproto_k3)
-print(umap_pdm)
-
-# PCA解释
-print(pca_scree)
-print(pca_loadings)
-
-# PCA贡献表
-pca_contrib <- get_pca_var(pca_result)$contrib
-pca_contrib_df <- as.data.frame(pca_contrib[, 1:3])
-pca_contrib_df$Variable <- rownames(pca_contrib_df)
-pca_contrib_long <- pivot_longer(pca_contrib_df, 
-                               cols = c("Dim.1", "Dim.2", "Dim.3"),
-                               names_to = "Component", 
-                               values_to = "Contribution")
-
-# 按贡献排序
-pca_top_contrib <- pca_contrib_long %>%
-  group_by(Component) %>%
-  arrange(desc(Contribution)) %>%
-  slice_head(n = 10)
-
-# 创建贡献条形图
-ggplot(pca_top_contrib, aes(x = reorder(Variable, Contribution), y = Contribution, fill = Component)) +
-  geom_bar(stat = "identity") +
-  coord_flip() +
-  facet_wrap(~ Component, scales = "free") +
-  labs(title = "各变量对主成分的贡献", x = "变量", y = "贡献百分比") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set1")
+# UMAP plots
+grid.arrange(umap_hier_plot, umap_kproto_k2_plot, 
+             umap_kproto_k3_plot, umap_pdm_plot, 
+             ncol = 2)
 
 dev.off()
 
-# 计算调整兰德指数
-# 使用已对齐的聚类分配
-hier_clusters <- as.numeric(as.character(dim_reduction_merged$hier_cluster))
-kproto_clusters_k2 <- as.numeric(as.character(dim_reduction_merged$kproto_k2))
-kproto_clusters_k3 <- as.numeric(as.character(dim_reduction_merged$kproto_k3))
+# Calculate PCA variance explained
+pca_var <- pca_result$sdev^2
+pca_var_pct <- pca_var / sum(pca_var) * 100
+pca_var_cum <- cumsum(pca_var_pct)
 
-# 打印长度确认
-cat("层次聚类向量长度:", length(hier_clusters), "\n")
-cat("K-Prototypes (k=2)向量长度:", length(kproto_clusters_k2), "\n")
-cat("K-Prototypes (k=3)向量长度:", length(kproto_clusters_k3), "\n")
-
-# 计算调整兰德指数
-adj_rand_h_k2 <- adjustedRandIndex(hier_clusters, kproto_clusters_k2)
-adj_rand_h_k3 <- adjustedRandIndex(hier_clusters, kproto_clusters_k3)
-adj_rand_k2_k3 <- adjustedRandIndex(kproto_clusters_k2, kproto_clusters_k3)
-
-# 创建一致性结果表格
-clustering_consistency <- data.frame(
-  Method_Pair = c("层次聚类 vs K-Prototypes (k=2)", 
-                 "层次聚类 vs K-Prototypes (k=3)",
-                 "K-Prototypes (k=2) vs (k=3)"),
-  Adjusted_Rand_Index = c(adj_rand_h_k2, adj_rand_h_k3, adj_rand_k2_k3)
+# Create PCA variance explained plot
+pca_var_df <- data.frame(
+  Component = 1:length(pca_var_pct),
+  Variance_Explained = pca_var_pct,
+  Cumulative_Variance = pca_var_cum
 )
 
-# 输出一致性结果
-cat("\n聚类方法一致性结果：\n")
-print(clustering_consistency)
+# Plot PCA variance explained
+pca_var_plot <- ggplot(pca_var_df, aes(x = Component)) +
+  geom_col(aes(y = Variance_Explained), fill = "steelblue") +
+  geom_line(aes(y = Cumulative_Variance), color = "red", size = 1) +
+  geom_point(aes(y = Cumulative_Variance), color = "red", size = 3) +
+  scale_y_continuous(
+    name = "Variance Explained (%)",
+    sec.axis = sec_axis(~., name = "Cumulative Variance (%)")
+  ) +
+  labs(title = "PCA Variance Explained",
+       x = "Principal Component") +
+  theme_minimal()
 
-# 保存一致性结果
-write.csv(clustering_consistency, "Results/BOAT2_Clustering_Method_Consistency.csv", row.names = FALSE)
+# Save PCA variance plot
+pdf("Results/BOAT2_PCA_Variance_Explained.pdf", width = 10, height = 6)
+print(pca_var_plot)
+dev.off()
+
+# Print variance explained by first few components
+cat("Variance explained by PC1:", round(pca_var_pct[1], 2), "%\n")
+cat("Variance explained by PC2:", round(pca_var_pct[2], 2), "%\n")
+cat("Cumulative variance explained by PC1-PC2:", round(pca_var_cum[2], 2), "%\n")
+cat("Cumulative variance explained by PC1-PC5:", round(pca_var_cum[5], 2), "%\n")
 ```
 
 # 比较不同聚类方法
@@ -2589,4 +2527,6 @@ print(cluster_summary)
 # Save detailed summary
 write.csv(cluster_summary, "Results/BOAT2_K7_Cluster_PDM_Summary.csv", row.names = FALSE)
 ```
+
+
 
