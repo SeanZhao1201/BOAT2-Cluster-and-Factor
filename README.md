@@ -13,7 +13,7 @@ This project analyzes building owners' decision-making characteristics, identifi
 
 ## Project Structure
 
-This project has been restructured to use a modular approach with separate R scripts for different analyses:
+This project uses a modular approach with separate R scripts for different analyses:
 
 ```
 BOAT2-Cluster-and-Factor/
@@ -26,11 +26,18 @@ BOAT2-Cluster-and-Factor/
 │   ├── 03_dimensionality.R    # PCA and UMAP dimensionality reduction
 │   ├── 04_clustering.R        # Main clustering analysis
 │   ├── 05_fuzzy_clustering.R  # Fuzzy clustering analysis
-│   ├── 06_pdm_analysis.R      # Project delivery method relationship analysis
-│   └── 07_visualizations.R    # Common visualization functions
-├── results/                   # Analysis outputs
+│   ├── kprototype_analysis.R  # K-prototype clustering for mixed data types
+│   ├── run_all.R              # Main script to run the complete analysis
+│   └── modules/               # Modular components
+│       ├── clustering/        # Specialized clustering functions
+│       ├── fuzzy_clustering.R # Fuzzy clustering implementation
+│       ├── fuzzy_visualization.R # Fuzzy clustering visualization
+│       ├── validation.R       # Cluster validation methods
+│       └── visualization.R    # Visualization functions
+├── Results/                   # Analysis outputs
 │   ├── tables/                # CSV output files
 │   └── figures/               # Generated visualizations
+├── BOAT2-Cluster-and-Factor.Rmd  # R Markdown document for analysis
 └── README.md                  # Project description
 ```
 
@@ -52,7 +59,8 @@ The optimal number of clusters is determined through:
 
 1. Clone this repository
 2. Ensure R and all required packages are installed (run `R/00_setup.R` to check and install needed packages)
-3. Run the scripts in numerical order, or use the provided main script to run the complete analysis
+3. Run the scripts in numerical order, or use the provided `run_all.R` script to run the complete analysis
+4. Alternatively, you can use the R Markdown file `BOAT2-Cluster-and-Factor.Rmd` for an interactive analysis
 
 ## Main Outputs
 
@@ -105,19 +113,18 @@ The optimal number of clusters is determined through:
 
 ## Output Files
 
-The analysis generates several output files:
+The analysis generates several output files in the Results directory:
 
-1. **Visualization Files**
-   - `BOAT2_Dendrogram_PDM.pdf`: Hierarchical clustering dendrogram colored by PDM type
-   - `BOAT2_Dendrogram_Clusters.pdf`: Hierarchical clustering dendrogram with cluster coloring
-   - `BOAT2_Clustering_Visualizations.pdf`: Boxplots and heatmaps of cluster characteristics
-   - `Cluster_Analysis_Visualizations.pdf`: Detailed cluster analysis visualizations
-   - `Dimension_Reduction_Analysis.pdf`: PCA and UMAP visualizations
+1. **Visualization Files** (in Results/figures/)
+   - Dendrograms of hierarchical clustering
+   - Boxplots and heatmaps of cluster characteristics
+   - Dimensionality reduction visualizations (PCA, UMAP)
+   - Radar charts of cluster profiles
 
-2. **Data Files**
-   - `BOAT2_Cluster_Assignments.csv`: Cluster assignments for each observation
-   - `BOAT2_PDM_Cluster_Table.csv`: Contingency table of PDM types by cluster
-   - `BOAT2_Clustering_Results.csv`: Detailed clustering results with original values
+2. **Data Files** (in Results/tables/)
+   - Cluster assignments for each observation
+   - Contingency tables of PDM types by cluster
+   - Detailed clustering results with original values
 
 ## Dependencies
 
@@ -130,11 +137,14 @@ The analysis requires the following R packages:
 
 ## Usage
 
-To run the analysis:
+To run the complete analysis:
 1. Ensure all required R packages are installed
-2. Place the input data file (`BOAT2_Data.csv`) in the working directory
-3. Run the R Markdown file (`0320.Rmd`)
-4. Check the generated output files for results and visualizations
+2. Run the `R/run_all.R` script which will execute all analysis steps in sequence
+3. Check the generated output files in the Results directory
+
+Alternatively, for an interactive analysis:
+1. Open the R Markdown file `BOAT2-Cluster-and-Factor.Rmd`
+2. Execute the chunks in sequence
 
 ## Notes
 
