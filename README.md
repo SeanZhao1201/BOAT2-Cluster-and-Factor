@@ -1,34 +1,74 @@
-# Building Owners' Decision-Making Profile Analysis
+# BOAT2 Cluster and Factor Analysis
 
-This repository contains the analysis of building owners' decision-making profiles using various clustering techniques and dimension reduction methods. The analysis aims to identify distinct groups of building owners based on their organizational characteristics and decision-making patterns.
+## Project Overview
 
-## Analysis Overview
+This project analyzes building owners' decision-making characteristics, identifies owner decision-making patterns through cluster analysis, and explores the relationship between these patterns and project delivery methods (PDM). The study employs multiple clustering methods and dimensionality reduction techniques for visualization to identify groups of owners with similar decision-making characteristics.
 
-The analysis consists of four main sections:
+## Research Questions
 
-1. **Data Preparation and Initial Clustering Analysis**
-   - Hierarchical clustering using Ward's method
-   - Dendrogram visualization with PDM type coloring
-   - Cluster assignment analysis
-   - Contingency table analysis of PDM types by cluster
+1. Are there distinct grouping patterns in building owners' decision-making characteristics?
+2. How do different clustering methods perform in distinguishing owner decision-making characteristics?
+3. Is there an association between owner decision-making characteristics and project delivery methods?
+4. Which decision-making characteristics are most important in distinguishing different owner groups?
 
-2. **K-Prototypes Clustering Analysis**
-   - Mixed data type handling (numerical and ordinal variables)
-   - Optimal cluster number determination using silhouette analysis
-   - PAM clustering implementation
-   - Cluster visualization through boxplots and heatmaps
+## Project Structure
 
-3. **Detailed Cluster Analysis and Visualization**
-   - K-prototypes clustering with k=2 and k=3
-   - Numerical variable distribution analysis
-   - Cluster characteristics heatmap
-   - Silhouette plot analysis
+This project has been restructured to use a modular approach with separate R scripts for different analyses:
 
-4. **Dimension Reduction Analysis**
-   - Principal Component Analysis (PCA)
-   - UMAP visualization
-   - Scree plot analysis
-   - Variable loadings analysis
+```
+BOAT2-Cluster-and-Factor/
+├── data/                      # Data files
+│   └── BOAT2_Data.csv         # Main dataset
+├── R/                         # R scripts
+│   ├── 00_setup.R             # Library loading and common utilities
+│   ├── 01_data_preparation.R  # Data preprocessing and cleaning
+│   ├── 02_exploration.R       # Exploratory data analysis
+│   ├── 03_dimensionality.R    # PCA and UMAP dimensionality reduction
+│   ├── 04_clustering.R        # Main clustering analysis
+│   ├── 05_fuzzy_clustering.R  # Fuzzy clustering analysis
+│   ├── 06_pdm_analysis.R      # Project delivery method relationship analysis
+│   └── 07_visualizations.R    # Common visualization functions
+├── results/                   # Analysis outputs
+│   ├── tables/                # CSV output files
+│   └── figures/               # Generated visualizations
+└── README.md                  # Project description
+```
+
+## Analysis Methods
+
+This study employs multiple clustering methods:
+- Hierarchical Clustering
+- Partitioning Around Medoids (PAM)
+- K-Prototypes Clustering (for handling mixed data types)
+- Fuzzy C-means Clustering (for soft clustering)
+
+The optimal number of clusters is determined through:
+- Silhouette Analysis
+- Elbow Method
+- Gap Statistic
+- Cluster Stability Analysis
+
+## How to Use
+
+1. Clone this repository
+2. Ensure R and all required packages are installed (run `R/00_setup.R` to check and install needed packages)
+3. Run the scripts in numerical order, or use the provided main script to run the complete analysis
+
+## Main Outputs
+
+- Cluster membership assignments for building owners
+- Visualizations of cluster characteristics
+- Analysis of relationship between clusters and PDM choices
+- Dimensionality reduction plots for data exploration
+
+## Required Packages
+
+- tidyverse, dplyr, readr (data processing)
+- ggplot2, gridExtra, viridis, RColorBrewer (visualization)
+- cluster, clustMixType, NbClust (clustering)
+- e1071 (fuzzy clustering)
+- factoextra, umap (dimensionality reduction)
+- fmsb (radar charts)
 
 ## Data Variables
 
