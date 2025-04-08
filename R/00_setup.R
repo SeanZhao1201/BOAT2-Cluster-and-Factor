@@ -3,34 +3,37 @@
 
 # Automatically set working directory to project root
 # This ensures that all paths work correctly regardless of where the script is called from
-tryCatch({
-  # Method 1: If this script is sourced from run_all.R, maintain that directory
-  # Check if script was already sourced and working directory is set
-  if(file.exists("R/00_setup.R") && file.exists("data") && file.exists("results")) {
-    cat("Working directory already correctly set to:", getwd(), "\n")
-  } else {
-    # Method 2: If run in RStudio directly
-    if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
-      script_path <- dirname(rstudioapi::getSourceEditorContext()$path)
-      setwd(dirname(script_path))  # Set to parent directory of R folder
-      cat("Working directory set using RStudio API to:", getwd(), "\n")
+tryCatch(
+  {
+    # Method 1: If this script is sourced from run_all.R, maintain that directory
+    # Check if script was already sourced and working directory is set
+    if (file.exists("R/00_setup.R") && file.exists("data") && file.exists("results")) {
+      cat("Working directory already correctly set to:", getwd(), "\n")
     } else {
-      # Method 3: Try using this script's location
-      script_path <- getSrcDirectory(function(){})
-      if (length(script_path) > 0 && script_path != "") {
-        setwd(dirname(script_path))
-        cat("Working directory set using script location to:", getwd(), "\n")
+      # Method 2: If run in RStudio directly
+      if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+        script_path <- dirname(rstudioapi::getSourceEditorContext()$path)
+        setwd(dirname(script_path)) # Set to parent directory of R folder
+        cat("Working directory set using RStudio API to:", getwd(), "\n")
       } else {
-        cat("Could not automatically set working directory.\n")
-        cat("Current working directory is:", getwd(), "\n")
-        cat("Make sure to manually set working directory to project root.\n")
+        # Method 3: Try using this script's location
+        script_path <- getSrcDirectory(function() {})
+        if (length(script_path) > 0 && script_path != "") {
+          setwd(dirname(script_path))
+          cat("Working directory set using script location to:", getwd(), "\n")
+        } else {
+          cat("Could not automatically set working directory.\n")
+          cat("Current working directory is:", getwd(), "\n")
+          cat("Make sure to manually set working directory to project root.\n")
+        }
       }
     }
+  },
+  error = function(e) {
+    cat("Error trying to set working directory:", e$message, "\n")
+    cat("Current working directory is:", getwd(), "\n")
   }
-}, error = function(e) {
-  cat("Error trying to set working directory:", e$message, "\n")
-  cat("Current working directory is:", getwd(), "\n")
-})
+)
 
 # 1. Required Libraries -------------------------------------------------------
 
@@ -44,46 +47,48 @@ check_and_install <- function(package_name) {
 
 # Define required packages by category
 data_packages <- c(
-  "tidyverse",  # Comprehensive package for data processing and visualization
-  "dplyr",      # Data manipulation and transformation
-  "readr",      # Efficient text data reading
-  "magrittr"    # Pipe operators
+  "tidyverse", # Comprehensive package for data processing and visualization
+  "dplyr", # Data manipulation and transformation
+  "readr", # Efficient text data reading
+  "magrittr" # Pipe operators
 )
 
 visualization_packages <- c(
-  "ggplot2",     # Declarative graphics creation
-  "gridExtra",   # Combine multiple ggplot graphics
-  "scales",      # Graphic scaling and labels
-  "viridis",     # Colorblind-friendly palette
+  "ggplot2", # Declarative graphics creation
+  "gridExtra", # Combine multiple ggplot graphics
+  "scales", # Graphic scaling and labels
+  "viridis", # Colorblind-friendly palette
   "RColorBrewer", # Classic color palettes
-  "ggrepel",     # Non-overlapping text labels
-  "grid",        # Base graphics system
-  "fmsb"         # Radar charts
+  "ggrepel", # Non-overlapping text labels
+  "grid", # Base graphics system
+  "fmsb" # Radar charts
 )
 
 clustering_packages <- c(
-  "cluster",     # Clustering algorithms and analysis
+  "cluster", # Clustering algorithms and analysis
   "clustMixType", # Mixed data type clustering
-  "NbClust",     # Determine optimal number of clusters
-  "dendextend",  # Dendrogram enhancement and visualization
-  "mclust",      # Model-based clustering and adjustedRandIndex function
-  "e1071"        # Fuzzy c-means clustering
+  "NbClust", # Determine optimal number of clusters
+  "dendextend", # Dendrogram enhancement and visualization
+  "mclust", # Model-based clustering and adjustedRandIndex function
+  "e1071" # Fuzzy c-means clustering
 )
 
 dimensionality_packages <- c(
-  "factoextra",  # PCA result visualization
-  "umap"         # Non-linear dimensionality reduction
+  "factoextra", # PCA result visualization
+  "umap" # Non-linear dimensionality reduction
 )
 
 # Additional utility packages
 utility_packages <- c(
-  "rstudioapi"   # RStudio API for working directory setting
+  "rstudioapi" # RStudio API for working directory setting
 )
 
 # Combine all packages
-all_packages <- c(data_packages, visualization_packages, 
-                 clustering_packages, dimensionality_packages,
-                 utility_packages)
+all_packages <- c(
+  data_packages, visualization_packages,
+  clustering_packages, dimensionality_packages,
+  utility_packages
+)
 
 # Check and install all packages
 for (pkg in all_packages) {
@@ -99,10 +104,10 @@ invisible(lapply(all_packages, library, character.only = TRUE))
 create_output_dirs <- function() {
   dirs <- c(
     "results",
-    "results/tables", 
+    "results/tables",
     "results/figures"
   )
-  
+
   for (dir in dirs) {
     if (!dir.exists(dir)) {
       dir.create(dir, recursive = TRUE)
@@ -155,4 +160,4 @@ create_output_dirs()
 
 # Print setup completion message
 cat("Setup complete! All required packages are loaded.\n")
-cat("Project directories initialized.\n") 
+cat("Project directories initialized.\n")

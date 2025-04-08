@@ -42,49 +42,95 @@ create_pdm_distribution_plot <- function(data, title = "PDM Distribution by Clus
       fill = "PDM Type"
     ) +
     theme_minimal() +
-    scale_y_continuous(labels = scales::percent)
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_brewer(palette = "Set3")
   
   return(p)
 }
 
-#' Create cluster characteristics heatmap
+#' Create cluster characteristics visualization for mixed data types
 #' 
 #' @param centroids Data frame containing cluster centroids
 #' @param variables Variables to include in the visualization
 #' @param title Plot title
-#' @param cluster_col Name of the column containing cluster assignments
 #' @return ggplot object with cluster characteristics visualization
 #' 
-create_cluster_heatmap <- function(centroids, variables, 
-                                 title = "Cluster Characteristics",
-                                 cluster_col = "Cluster") {
-  # Reshape data for plotting
-  plot_data <- centroids %>%
-    select(all_of(c(cluster_col, variables))) %>%
-    tidyr::pivot_longer(
-      cols = all_of(variables),
-      names_to = "Variable",
-      values_to = "Value"
-    )
+visualize_kprototype_clusters <- function(centroids, variables, title = "Cluster Characteristics") {
+  # Separate numerical and categorical variables
+  numerical_vars <- variables[sapply(centroids[, variables], is.numeric)]
+  categorical_vars <- variables[!variables %in% numerical_vars]
   
-  # Create a heatmap
-  p <- ggplot(plot_data, aes(x = Variable, y = factor(!!sym(cluster_col)), fill = Value)) +
-    geom_tile() +
-    geom_text(aes(label = sprintf("%.2f", Value)), size = 3) +
-    scale_fill_viridis_c() +
-    labs(
-      title = title,
-      x = "Variable",
-      y = cluster_col,
-      fill = "Value"
-    ) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "right"
-    )
+  # Create separate plots for numerical and categorical variables
+  if (length(numerical_vars) > 0) {
+    # Reshape numerical data
+    numerical_data <- centroids %>%
+      select(Cluster, all_of(numerical_vars)) %>%
+      pivot_longer(
+        cols = all_of(numerical_vars),
+        names_to = "Variable",
+        values_to = "Value"
+      )
+    
+    # Create numerical variables plot
+    numerical_plot <- ggplot(numerical_data, aes(x = Variable, y = factor(Cluster), fill = Value)) +
+      geom_tile() +
+      geom_text(aes(label = sprintf("%.2f", Value)), size = 3) +
+      scale_fill_viridis_c() +
+      labs(
+        title = paste(title, "- Numerical Variables"),
+        x = "Variable",
+        y = "Cluster",
+        fill = "Value"
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "right"
+      )
+  } else {
+    numerical_plot <- NULL
+  }
   
-  return(p)
+  if (length(categorical_vars) > 0) {
+    # Reshape categorical data
+    categorical_data <- centroids %>%
+      select(Cluster, all_of(categorical_vars)) %>%
+      pivot_longer(
+        cols = all_of(categorical_vars),
+        names_to = "Variable",
+        values_to = "Value"
+      )
+    
+    # Create categorical variables plot
+    categorical_plot <- ggplot(categorical_data, aes(x = Variable, y = factor(Cluster), fill = Value)) +
+      geom_tile() +
+      geom_text(aes(label = as.character(Value)), size = 3) +
+      scale_fill_viridis_d() +
+      labs(
+        title = paste(title, "- Categorical Variables"),
+        x = "Variable",
+        y = "Cluster",
+        fill = "Value"
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "right"
+      )
+  } else {
+    categorical_plot <- NULL
+  }
+  
+  # Combine plots if both exist
+  if (!is.null(numerical_plot) && !is.null(categorical_plot)) {
+    return(grid.arrange(numerical_plot, categorical_plot, ncol = 2))
+  } else if (!is.null(numerical_plot)) {
+    return(numerical_plot)
+  } else if (!is.null(categorical_plot)) {
+    return(categorical_plot)
+  } else {
+    stop("No variables to plot")
+  }
 }
 
 #' Create boxplots showing variable distribution by cluster

@@ -12,22 +12,22 @@ fuzzy_data <- read.csv("results/tables/fuzzy_data.csv")
 # 2.1 Prepare data for PCA
 # Extract just the decision variables
 decision_vars <- c(
-  "Distribution_Centralization", 
+  "Distribution_Centralization",
   "Distribution_Formalization",
-  "Style_Technocracy", 
-  "Style_Participation", 
-  "Style_Organicity", 
+  "Style_Technocracy",
+  "Style_Participation",
+  "Style_Organicity",
   "Style_Coercion",
-  "Culture_Command", 
-  "Culture_Symbolic", 
-  "Culture_Rationale", 
-  "Culture_Generative", 
+  "Culture_Command",
+  "Culture_Symbolic",
+  "Culture_Rationale",
+  "Culture_Generative",
   "Culture_Transactive",
-  "Flexibility_openness", 
+  "Flexibility_openness",
   "Flexibility_Recursiveness",
   "Risk",
-  "Environment_Growth", 
-  "Environment_Hostile", 
+  "Environment_Growth",
+  "Environment_Hostile",
   "Environment_Stable"
 )
 
@@ -92,67 +92,121 @@ scree_plot <- ggplot(pca_var_df, aes(x = PC, y = Percentage)) +
 save_plot(scree_plot, "pca_scree_plot.pdf", width = 10, height = 7)
 
 # Biplot of PC1 and PC2
-biplot_pc1_pc2 <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = PDM_Type)) +
-  geom_point(size = 3, alpha = 0.7) +
-  labs(
-    title = "PCA Biplot: PC1 vs PC2",
-    subtitle = paste0("PC1 (", pca_var_percent[1], "%) vs PC2 (", pca_var_percent[2], "%)"),
-    x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
-    y = paste0("PC2 (", pca_var_percent[2], "% variance)"),
-    color = "PDM Type"
-  ) +
-  theme_minimal() +
-  # Add variable loadings as arrows
-  geom_segment(
-    data = pca_loadings,
-    aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5),
-    arrow = arrow(length = unit(0.2, "cm")),
-    color = "darkgray"
-  ) +
-  geom_text_repel(
-    data = pca_loadings,
-    aes(x = PC1 * 6, y = PC2 * 6, label = Variable),
-    color = "black",
-    size = 3,
-    segment.alpha = 0.5
-  )
-
-# Save biplot
-save_plot(biplot_pc1_pc2, "pca_biplot_pc1_pc2.pdf", width = 12, height = 10)
-
-# Biplot of PC3 and PC4 (if they explain a significant amount of variance)
-if (sum(pca_var_percent[3:4]) > 10) {
-  biplot_pc3_pc4 <- ggplot(pca_scores, aes(x = PC3, y = PC4, color = PDM_Type)) +
+if ("PDM_Type" %in% colnames(fuzzy_data)) {
+  biplot_pc1_pc2 <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = PDM_Type)) +
     geom_point(size = 3, alpha = 0.7) +
     labs(
-      title = "PCA Biplot: PC3 vs PC4",
-      subtitle = paste0("PC3 (", pca_var_percent[3], "%) vs PC4 (", pca_var_percent[4], "%)"),
-      x = paste0("PC3 (", pca_var_percent[3], "% variance)"),
-      y = paste0("PC4 (", pca_var_percent[4], "% variance)"),
+      title = "PCA Biplot: PC1 vs PC2",
+      subtitle = paste0("PC1 (", pca_var_percent[1], "%) vs PC2 (", pca_var_percent[2], "%)"),
+      x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
+      y = paste0("PC2 (", pca_var_percent[2], "% variance)"),
       color = "PDM Type"
     ) +
     theme_minimal() +
     # Add variable loadings as arrows
     geom_segment(
       data = pca_loadings,
-      aes(x = 0, y = 0, xend = PC3 * 5, yend = PC4 * 5),
+      aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5),
       arrow = arrow(length = unit(0.2, "cm")),
       color = "darkgray"
     ) +
     geom_text_repel(
       data = pca_loadings,
-      aes(x = PC3 * 6, y = PC4 * 6, label = Variable),
+      aes(x = PC1 * 6, y = PC2 * 6, label = Variable),
       color = "black",
       size = 3,
       segment.alpha = 0.5
     )
-  
+} else {
+  cat("Warning: PDM_Type column not found. Creating PCA biplot without color coding.\n")
+  biplot_pc1_pc2 <- ggplot(pca_scores, aes(x = PC1, y = PC2)) +
+    geom_point(size = 3, alpha = 0.7) +
+    labs(
+      title = "PCA Biplot: PC1 vs PC2",
+      subtitle = paste0("PC1 (", pca_var_percent[1], "%) vs PC2 (", pca_var_percent[2], "%)"),
+      x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
+      y = paste0("PC2 (", pca_var_percent[2], "% variance)")
+    ) +
+    theme_minimal() +
+    # Add variable loadings as arrows
+    geom_segment(
+      data = pca_loadings,
+      aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5),
+      arrow = arrow(length = unit(0.2, "cm")),
+      color = "darkgray"
+    ) +
+    geom_text_repel(
+      data = pca_loadings,
+      aes(x = PC1 * 6, y = PC2 * 6, label = Variable),
+      color = "black",
+      size = 3,
+      segment.alpha = 0.5
+    )
+}
+
+# Save biplot
+save_plot(biplot_pc1_pc2, "pca_biplot_pc1_pc2.pdf", width = 12, height = 10)
+
+# Biplot of PC3 and PC4 (if they explain a significant amount of variance)
+if (sum(pca_var_percent[3:4]) > 10) {
+  if ("PDM_Type" %in% colnames(fuzzy_data)) {
+    biplot_pc3_pc4 <- ggplot(pca_scores, aes(x = PC3, y = PC4, color = PDM_Type)) +
+      geom_point(size = 3, alpha = 0.7) +
+      labs(
+        title = "PCA Biplot: PC3 vs PC4",
+        subtitle = paste0("PC3 (", pca_var_percent[3], "%) vs PC4 (", pca_var_percent[4], "%)"),
+        x = paste0("PC3 (", pca_var_percent[3], "% variance)"),
+        y = paste0("PC4 (", pca_var_percent[4], "% variance)"),
+        color = "PDM Type"
+      ) +
+      theme_minimal() +
+      # Add variable loadings as arrows
+      geom_segment(
+        data = pca_loadings,
+        aes(x = 0, y = 0, xend = PC3 * 5, yend = PC4 * 5),
+        arrow = arrow(length = unit(0.2, "cm")),
+        color = "darkgray"
+      ) +
+      geom_text_repel(
+        data = pca_loadings,
+        aes(x = PC3 * 6, y = PC4 * 6, label = Variable),
+        color = "black",
+        size = 3,
+        segment.alpha = 0.5
+      )
+  } else {
+    cat("Warning: PDM_Type column not found. Creating PC3-PC4 biplot without color coding.\n")
+    biplot_pc3_pc4 <- ggplot(pca_scores, aes(x = PC3, y = PC4)) +
+      geom_point(size = 3, alpha = 0.7) +
+      labs(
+        title = "PCA Biplot: PC3 vs PC4",
+        subtitle = paste0("PC3 (", pca_var_percent[3], "%) vs PC4 (", pca_var_percent[4], "%)"),
+        x = paste0("PC3 (", pca_var_percent[3], "% variance)"),
+        y = paste0("PC4 (", pca_var_percent[4], "% variance)")
+      ) +
+      theme_minimal() +
+      # Add variable loadings as arrows
+      geom_segment(
+        data = pca_loadings,
+        aes(x = 0, y = 0, xend = PC3 * 5, yend = PC4 * 5),
+        arrow = arrow(length = unit(0.2, "cm")),
+        color = "darkgray"
+      ) +
+      geom_text_repel(
+        data = pca_loadings,
+        aes(x = PC3 * 6, y = PC4 * 6, label = Variable),
+        color = "black",
+        size = 3,
+        segment.alpha = 0.5
+      )
+  }
+
   # Save biplot
   save_plot(biplot_pc3_pc4, "pca_biplot_pc3_pc4.pdf", width = 12, height = 10)
 }
 
 # 3D PCA Plot (using plotly)
-if (requireNamespace("plotly", quietly = TRUE)) {
+if (requireNamespace("plotly", quietly = TRUE) && "PDM_Type" %in% colnames(fuzzy_data)) {
   pca_3d <- plotly::plot_ly(
     pca_scores,
     x = ~PC1, y = ~PC2, z = ~PC3,
@@ -169,21 +223,23 @@ if (requireNamespace("plotly", quietly = TRUE)) {
         zaxis = list(title = paste0("PC3 (", pca_var_percent[3], "%)"))
       )
     )
-  
+
   # Save as HTML file
   htmlwidgets::saveWidget(pca_3d, "results/figures/pca_3d_plot.html")
+} else if (requireNamespace("plotly", quietly = TRUE)) {
+  cat("Warning: PDM_Type column not found. Skipping colored 3D PCA plot.\n")
 }
 
 # 3. UMAP Dimensionality Reduction -------------------------------------------
 
 # 3.1 Run UMAP
 # Set UMAP parameters
-umap_n_neighbors <- 15     # Controls local versus global structure
-umap_min_dist <- 0.1       # Controls clustering tightness
-umap_n_components <- 2     # Number of dimensions to reduce to
+umap_n_neighbors <- 15 # Controls local versus global structure
+umap_min_dist <- 0.1 # Controls clustering tightness
+umap_n_components <- 2 # Number of dimensions to reduce to
 
 # Run UMAP
-set.seed(123)  # For reproducibility
+set.seed(123) # For reproducibility
 umap_result <- umap::umap(
   pca_data,
   n_neighbors = umap_n_neighbors,
@@ -195,22 +251,39 @@ umap_result <- umap::umap(
 umap_df <- as.data.frame(umap_result$layout)
 colnames(umap_df) <- c("UMAP1", "UMAP2")
 umap_df$ID <- fuzzy_data$ID
-umap_df$PDM_Type <- fuzzy_data$PDM_Type
+
+# Add PDM_Type if it exists
+if ("PDM_Type" %in% colnames(fuzzy_data)) {
+  umap_df$PDM_Type <- fuzzy_data$PDM_Type
+}
 
 # Save UMAP results
 save_data(umap_df, "umap_results.csv")
 
 # 3.2 UMAP Visualization
-umap_plot <- ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = PDM_Type)) +
-  geom_point(size = 3, alpha = 0.7) +
-  labs(
-    title = "UMAP Dimensionality Reduction",
-    subtitle = paste0("n_neighbors = ", umap_n_neighbors, ", min_dist = ", umap_min_dist),
-    x = "UMAP Dimension 1",
-    y = "UMAP Dimension 2",
-    color = "PDM Type"
-  ) +
-  theme_minimal()
+if ("PDM_Type" %in% colnames(fuzzy_data)) {
+  umap_plot <- ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = PDM_Type)) +
+    geom_point(size = 3, alpha = 0.7) +
+    labs(
+      title = "UMAP Dimensionality Reduction",
+      subtitle = paste0("n_neighbors = ", umap_n_neighbors, ", min_dist = ", umap_min_dist),
+      x = "UMAP Dimension 1",
+      y = "UMAP Dimension 2",
+      color = "PDM Type"
+    ) +
+    theme_minimal()
+} else {
+  umap_plot <- ggplot(umap_df, aes(x = UMAP1, y = UMAP2)) +
+    geom_point(size = 3, alpha = 0.7) +
+    labs(
+      title = "UMAP Dimensionality Reduction",
+      subtitle = paste0("n_neighbors = ", umap_n_neighbors, ", min_dist = ", umap_min_dist),
+      x = "UMAP Dimension 1",
+      y = "UMAP Dimension 2"
+    ) +
+    theme_minimal()
+  cat("Warning: PDM_Type column not found. Creating UMAP plot without color coding.\n")
+}
 
 # Save UMAP plot
 save_plot(umap_plot, "umap_plot.pdf", width = 10, height = 8)
@@ -267,54 +340,85 @@ save_data(combined_df, "dimensionality_reduction_results.csv")
 
 # 5. PDM Analysis with Dimensionality Reduction ------------------------------
 
-# 5.1 PDM clustering tendency in reduced dimensions
-# Calculate centroids by PDM type in PCA space
-pdm_centroids_pca <- combined_df %>%
-  group_by(PDM_Type) %>%
-  summarise(
-    PC1_mean = mean(PC1),
-    PC2_mean = mean(PC2),
-    PC3_mean = mean(PC3),
-    UMAP1_mean = mean(UMAP1),
-    UMAP2_mean = mean(UMAP2)
-  )
+# Check if PDM_Type exists before doing PDM analysis
+if ("PDM_Type" %in% colnames(fuzzy_data)) {
+  # 5.1 PDM clustering tendency in reduced dimensions
+  # Calculate centroids by PDM type in PCA space
+  pdm_centroids_pca <- combined_df %>%
+    group_by(PDM_Type) %>%
+    summarise(
+      PC1_mean = mean(PC1),
+      PC2_mean = mean(PC2),
+      PC3_mean = mean(PC3),
+      UMAP1_mean = mean(UMAP1),
+      UMAP2_mean = mean(UMAP2)
+    )
 
-# Save PDM centroids
-save_data(pdm_centroids_pca, "pdm_centroids_reduced_dimensions.csv")
+  # Save PDM centroids
+  save_data(pdm_centroids_pca, "pdm_centroids_reduced_dimensions.csv")
 
-# Create PDM centroid plot in PCA space
-pdm_pca_plot <- ggplot() +
-  geom_point(data = combined_df, aes(x = PC1, y = PC2, color = PDM_Type), alpha = 0.5) +
-  geom_point(data = pdm_centroids_pca, aes(x = PC1_mean, y = PC2_mean, color = PDM_Type), size = 5) +
-  geom_text_repel(data = pdm_centroids_pca, aes(x = PC1_mean, y = PC2_mean, label = PDM_Type, color = PDM_Type)) +
-  labs(
-    title = "PDM Types in PCA Space",
-    subtitle = "Large points represent centroids of each PDM type",
-    x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
-    y = paste0("PC2 (", pca_var_percent[2], "% variance)"),
-    color = "PDM Type"
-  ) +
-  theme_minimal()
+  # Create PDM centroid plot in PCA space
+  pdm_pca_plot <- ggplot() +
+    geom_point(data = combined_df, aes(x = PC1, y = PC2, color = PDM_Type), alpha = 0.5) +
+    geom_point(data = pdm_centroids_pca, aes(x = PC1_mean, y = PC2_mean, color = PDM_Type), size = 5) +
+    geom_text_repel(data = pdm_centroids_pca, aes(x = PC1_mean, y = PC2_mean, label = PDM_Type, color = PDM_Type)) +
+    labs(
+      title = "PDM Types in PCA Space",
+      subtitle = "Large points represent centroids of each PDM type",
+      x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
+      y = paste0("PC2 (", pca_var_percent[2], "% variance)"),
+      color = "PDM Type"
+    ) +
+    theme_minimal()
 
-# Save PDM PCA plot
-save_plot(pdm_pca_plot, "pdm_pca_plot.pdf", width = 10, height = 8)
+  # Save PDM PCA plot
+  save_plot(pdm_pca_plot, "pdm_pca_plot.pdf", width = 10, height = 8)
 
-# Create PDM centroid plot in UMAP space
-pdm_umap_plot <- ggplot() +
-  geom_point(data = combined_df, aes(x = UMAP1, y = UMAP2, color = PDM_Type), alpha = 0.5) +
-  geom_point(data = pdm_centroids_pca, aes(x = UMAP1_mean, y = UMAP2_mean, color = PDM_Type), size = 5) +
-  geom_text_repel(data = pdm_centroids_pca, aes(x = UMAP1_mean, y = UMAP2_mean, label = PDM_Type, color = PDM_Type)) +
-  labs(
-    title = "PDM Types in UMAP Space",
-    subtitle = "Large points represent centroids of each PDM type",
-    x = "UMAP Dimension 1",
-    y = "UMAP Dimension 2",
-    color = "PDM Type"
-  ) +
-  theme_minimal()
+  # Create PDM centroid plot in UMAP space
+  pdm_umap_plot <- ggplot() +
+    geom_point(data = combined_df, aes(x = UMAP1, y = UMAP2, color = PDM_Type), alpha = 0.5) +
+    geom_point(data = pdm_centroids_pca, aes(x = UMAP1_mean, y = UMAP2_mean, color = PDM_Type), size = 5) +
+    geom_text_repel(data = pdm_centroids_pca, aes(x = UMAP1_mean, y = UMAP2_mean, label = PDM_Type, color = PDM_Type)) +
+    labs(
+      title = "PDM Types in UMAP Space",
+      subtitle = "Large points represent centroids of each PDM type",
+      x = "UMAP Dimension 1",
+      y = "UMAP Dimension 2",
+      color = "PDM Type"
+    ) +
+    theme_minimal()
 
-# Save PDM UMAP plot
-save_plot(pdm_umap_plot, "pdm_umap_plot.pdf", width = 10, height = 8)
+  # Save PDM UMAP plot
+  save_plot(pdm_umap_plot, "pdm_umap_plot.pdf", width = 10, height = 8)
+} else {
+  cat("Warning: PDM_Type column not found. Skipping PDM analysis in dimensionality reduction.\n")
+  # Create basic plots without PDM coloring
+  basic_pca_plot <- ggplot(combined_df, aes(x = PC1, y = PC2)) +
+    geom_point(alpha = 0.7) +
+    labs(
+      title = "PCA Space",
+      x = paste0("PC1 (", pca_var_percent[1], "% variance)"),
+      y = paste0("PC2 (", pca_var_percent[2], "% variance)")
+    ) +
+    theme_minimal()
+
+  basic_umap_plot <- ggplot(combined_df, aes(x = UMAP1, y = UMAP2)) +
+    geom_point(alpha = 0.7) +
+    labs(
+      title = "UMAP Space",
+      x = "UMAP Dimension 1",
+      y = "UMAP Dimension 2"
+    ) +
+    theme_minimal()
+
+  # Save basic plots
+  save_plot(basic_pca_plot, "basic_pca_plot.pdf", width = 10, height = 8)
+  save_plot(basic_umap_plot, "basic_umap_plot.pdf", width = 10, height = 8)
+
+  # Define the variables for the summary PDF
+  pdm_pca_plot <- basic_pca_plot
+  pdm_umap_plot <- basic_umap_plot
+}
 
 # 6. Create Summary PDF -----------------------------------------------------
 
@@ -338,4 +442,4 @@ dev.off()
 # Print completion message
 cat("\nDimensionality Reduction Analysis complete!\n")
 cat("Visualizations saved to results/figures/\n")
-cat("Results data saved to results/tables/\n") 
+cat("Results data saved to results/tables/\n")

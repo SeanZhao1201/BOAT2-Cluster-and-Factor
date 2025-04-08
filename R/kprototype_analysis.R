@@ -108,125 +108,126 @@ ggsave("results/figures/kproto_silhouette_plot.pdf", silhouette_plot, width = 10
 
 # 4. Run K-Prototype Clustering for Selected k Values --------------------------
 # We'll run k=2, k=3, and k=7 as specified
+k_values <- c(2, 3, 7)
 
-# Function to create a wrapper for k-prototype clustering
-kproto_wrapper <- function(data, k) {
-  # Prepare data for clustering
-  mixed_data <- data %>%
-    select(all_of(c(numerical_vars, categorical_vars))) %>%
-    mutate(across(all_of(categorical_vars), ~ ordered(round(.), levels = 1:5)))
-  
-  # Run k-prototypes clustering
-  kproto_result <- clustMixType::kproto(mixed_data, k = k, verbose = FALSE)
-  
-  # Return just the cluster assignments
-  return(kproto_result$cluster)
-}
+# Create directories if they don't exist
+dir.create(file.path("results", "figures", "kprototype"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path("results", "tables", "kprototype"), recursive = TRUE, showWarnings = FALSE)
 
 # Function to run evaluation for a specific k value
 evaluate_k <- function(k) {
   cat(paste0("\nRunning K-Prototype clustering with k=", k, "...\n"))
   
-  # Run full analysis for this k value
-  results <- run_kprototype_analysis(
-    kproto_data,
-    numerical_vars,
-    categorical_vars,
-    k = k,
-    save_results = TRUE,
-    prefix = "kproto"
+  # Run clustering
+  kproto_results <- run_kprototype_clustering(
+    data = kproto_data,
+    numerical_vars = numerical_vars,
+    categorical_vars = categorical_vars,
+    k = k
   )
   
-  # Calculate validation metrics on the scaled data
-  scaled_data <- scale(kproto_data[, c(numerical_vars, categorical_vars)])
-  clusters <- results$clustering$results$Cluster
+  # Save clustering results
+  write.csv(
+    kproto_results$results,
+    file.path("results", "tables", "kprototype", paste0("clusters_k", k, ".csv")),
+    row.names = FALSE
+  )
+  write.csv(
+    kproto_results$centroids,
+    file.path("results", "tables", "kprototype", paste0("centroids_k", k, ".csv")),
+    row.names = FALSE
+  )
+  
+  # Create and save PDM distribution plot
+  pdm_plot <- create_pdm_distribution_plot(
+    kproto_results$results,
+    title = paste0("PDM Distribution by K-Prototypes Cluster (k=", k, ")")
+  )
+  pdf(
+    file.path("results", "figures", "kprototype", paste0("pdm_distribution_k", k, ".pdf")),
+    width = 10,
+    height = 6
+  )
+  print(pdm_plot)
+  dev.off()
+  
+  # Create and save cluster characteristics plot
+  cluster_viz <- visualize_kprototype_clusters(
+    kproto_results$centroids,
+    c(numerical_vars, categorical_vars),
+    title = paste0("K-Prototypes Cluster Characteristics (k=", k, ")")
+  )
+  pdf(
+    file.path("results", "figures", "kprototype", paste0("characteristics_k", k, ".pdf")),
+    width = 12,
+    height = 8
+  )
+  print(cluster_viz)
+  dev.off()
+  
+  # Calculate validation metrics using Gower distance for mixed data
+  mixed_data <- kproto_data[, c(numerical_vars, categorical_vars)]
+  mixed_data <- mixed_data %>%
+    mutate(across(all_of(categorical_vars), ~ ordered(round(.), levels = 1:5)))
+  
+  gower_dist <- cluster::daisy(mixed_data, metric = "gower")
   
   # Calculate metrics
-  sil <- calculate_silhouette(scaled_data, clusters)
+  sil <- cluster::silhouette(kproto_results$results$Cluster, gower_dist)
   mean_sil <- mean(sil[, 3])
-  
-  dunn <- calculate_dunn_index(scaled_data, clusters)
-  db <- calculate_davies_bouldin(scaled_data, clusters)
-  ch <- calculate_calinski_harabasz(scaled_data, clusters)
   
   # Print metrics
   cat(paste0("  Mean Silhouette Width: ", round(mean_sil, 4), "\n"))
-  cat(paste0("  Dunn Index: ", round(dunn, 4), "\n"))
-  cat(paste0("  Davies-Bouldin Index: ", round(db, 4), "\n"))
-  cat(paste0("  Calinski-Harabasz Index: ", round(ch, 4), "\n"))
   
-  # Save metrics to file
+  # Save metrics
   metrics_df <- data.frame(
     k = k,
-    silhouette = mean_sil,
-    dunn = dunn,
-    davies_bouldin = db,
-    calinski_harabasz = ch
+    silhouette = mean_sil
   )
-  write.csv(metrics_df, paste0("results/tables/kproto_k", k, "_metrics.csv"), row.names = FALSE)
-  
-  # Create a comprehensive report
-  cat(paste0("Creating comprehensive report for k=", k, "...\n"))
-  create_cluster_report(
-    results$clustering,
-    c(numerical_vars, categorical_vars),
-    paste0("K-Prototype Clustering Analysis (k=", k, ")"),
-    file = paste0("results/figures/kproto_k", k, "_report.pdf"),
-    width = 11,
-    height = 8.5
+  write.csv(
+    metrics_df,
+    file.path("results", "tables", "kprototype", paste0("metrics_k", k, ".csv")),
+    row.names = FALSE
   )
   
-  return(results)
+  return(kproto_results)
 }
 
-# Evaluate k=2
-results_k2 <- evaluate_k(2)
-
-# Evaluate k=3
-results_k3 <- evaluate_k(3)
-
-# Evaluate k=7
-results_k7 <- evaluate_k(7)
-
-# 5. Compare Results Across Different k Values ---------------------------------
-cat("\nComparing results across different k values...\n")
-
-# Compare clustering quality metrics
-metrics_k2 <- read.csv("results/tables/kproto_k2_metrics.csv")
-metrics_k3 <- read.csv("results/tables/kproto_k3_metrics.csv")
-metrics_k7 <- read.csv("results/tables/kproto_k7_metrics.csv")
-
-comparison_metrics <- rbind(metrics_k2, metrics_k3, metrics_k7)
-write.csv(comparison_metrics, "results/tables/kproto_comparison_metrics.csv", row.names = FALSE)
-
-# Create comparison plot for metrics
-metrics_long <- comparison_metrics %>%
-  pivot_longer(cols = -k, names_to = "Metric", values_to = "Value")
-
-# Scale metrics to 0-1 for easier comparison
-metrics_long <- metrics_long %>%
-  group_by(Metric) %>%
-  mutate(Scaled_Value = if (Metric %in% c("silhouette", "dunn", "calinski_harabasz")) {
-    # For these metrics, higher is better
-    (Value - min(Value)) / (max(Value) - min(Value))
-  } else {
-    # For davies_bouldin, lower is better
-    1 - (Value - min(Value)) / (max(Value) - min(Value))
-  })
+# Run analysis for each k value
+results_list <- lapply(k_values, evaluate_k)
+names(results_list) <- paste0("k", k_values)
 
 # Create comparison plot
-comparison_plot <- ggplot(metrics_long, aes(x = factor(k), y = Scaled_Value, color = Metric, group = Metric)) +
+metrics_list <- lapply(k_values, function(k) {
+  read.csv(file.path("results", "tables", "kprototype", paste0("metrics_k", k, ".csv")))
+})
+comparison_metrics <- do.call(rbind, metrics_list)
+
+# Create comparison plot
+comparison_plot <- ggplot(comparison_metrics, aes(x = k, y = silhouette)) +
   geom_line() +
   geom_point(size = 3) +
   labs(
-    title = "Comparison of Clustering Metrics Across k Values",
-    subtitle = "All metrics scaled to 0-1 (higher is better)",
+    title = "Comparison of Silhouette Scores Across k Values",
     x = "Number of Clusters (k)",
-    y = "Scaled Metric Value"
+    y = "Silhouette Score"
   ) +
   theme_minimal()
 
-ggsave("results/figures/kproto_metrics_comparison.pdf", comparison_plot, width = 10, height = 7)
+pdf(
+  file.path("results", "figures", "kprototype", "metrics_comparison.pdf"),
+  width = 10,
+  height = 7
+)
+print(comparison_plot)
+dev.off()
+
+# Save comparison metrics
+write.csv(
+  comparison_metrics,
+  file.path("results", "tables", "kprototype", "metrics_comparison.csv"),
+  row.names = FALSE
+)
 
 # 6. Check PDM Distribution Across Cluster Solutions ---------------------------
 cat("\nAnalyzing PDM distribution across cluster solutions...\n")
