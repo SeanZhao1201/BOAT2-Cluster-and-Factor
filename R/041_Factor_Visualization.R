@@ -70,9 +70,9 @@ corrplot(clean_loadings, method = "color",
          mar = c(0, 0, 1, 0),
          cl.ratio = 0.2,
          cl.align = "r",
-         addCoef.col = "black",    # 添加数字标签，黑色
-         number.cex = 0.7,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels, in black
+         number.cex = 0.7,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
 # Also save as PNG
@@ -85,9 +85,9 @@ corrplot(clean_loadings, method = "color",
          mar = c(0, 0, 1, 0),
          cl.ratio = 0.2,
          cl.align = "r",
-         addCoef.col = "black",    # 添加数字标签，黑色
-         number.cex = 0.7,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels, in black
+         number.cex = 0.7,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
 # 3. Create radar charts for factor profiles by PDM --------------------------
@@ -257,17 +257,17 @@ load_diagram_data <- as.data.frame(clean_loadings)
 
 # Define variable groups (using prefixes)
 var_groups <- list(
-  "Decision Distribution" = c("DEC_Authority_Dispersion", "DEC_Authority_Delegation", 
-                            "DEC_Process_InformalCommunication", "DEC_Process_InformalProcedures"),
-  "Decision Style" = c("STY_Analytical_DataDriven", "STY_Participative_Inclusion", 
-                      "STY_Participative_Relational", "STY_Organic_InformalStructure", 
-                      "STY_Organic_Adaptability", "STY_Directive_Threats", "STY_Directive_Compliance"),
-  "Culture" = c("CUL_Authority_Hierarchical", "CUL_Integration_Vision", 
-               "CUL_Integration_Systematic", "CUL_Innovation_Experimental", 
-               "CUL_Collaboration_Stakeholder"),
-  "Flexibility" = c("FLEX_Cognitive_Receptivity", "FLEX_Behavioral_Adaptability"),
-  "Risk & Environment" = c("RISK_Appetite_Investment", "ENV_Context_Growth", 
-                          "ENV_Context_Volatility", "ENV_Context_Stability")
+  "Decision Distribution" = c("DIST_Athority_Dispersion", "DIST_Athority_Delegation", 
+                            "DIST_Process_InformalCommunication", "DIST_Process_InformalProcedure"),
+  "Decision Style" = c("STY_DataDriven", "STY_Participation_Inclusion", 
+                      "STY_Participation_Relational", "STY_Adaptive_Informal", 
+                      "STY_Adaptive_Changeable", "STY_Authoritative_Threats", "STY_Authoritative_Compliance"),
+  "Culture" = c("CUL_Command", "CUL_Symbolic", 
+               "CUL_Formal", "CUL_Experimental", 
+               "CUL_Learning"),
+  "Flexibility" = c("FLEX_OpenToNewIdeas", "FLEX_OpenToChanges"),
+  "Risk & Environment" = c("RISK_Tolerance", "ENV_SustainedGrowth", 
+                          "ENV_HighriskIndustry", "ENV_IndustryStability")
 )
 
 # Add a 'group' column to each row based on variable name
@@ -405,9 +405,9 @@ corrplot(pdm_means_matrix, is.corr = FALSE,
          tl.col = "black", tl.srt = 45, 
          cl.align.text = "l",
          title = "Mean Factor Scores by Project Delivery Method",
-         addCoef.col = "black",    # 添加数字标签，黑色
-         number.cex = 0.9,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels in black 
+         number.cex = 0.9,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
 # Also save as PNG
@@ -418,33 +418,33 @@ corrplot(pdm_means_matrix, is.corr = FALSE,
          tl.col = "black", tl.srt = 45, 
          cl.align.text = "l",
          title = "Mean Factor Scores by Project Delivery Method",
-         addCoef.col = "black",    # 添加数字标签，黑色
-         number.cex = 0.9,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels in black
+         number.cex = 0.9,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
 # 8. Create a heat map of top loading variables for each factor -------------
 cat("Creating heat map of top loading variables for each factor...\n")
 
-# 为每个因子找出最重要的变量（绝对值最高的负荷）
-top_n_variables <- 5  # 每个因子显示前5个最重要的变量
+# Find the most important variables for each factor (highest absolute loadings)
+top_n_variables <- 5  # Show top 5 most important variables for each factor
 
-# 提取每个因子最高负荷的变量
+# Extract the variables with highest loadings for each factor
 top_vars_by_factor <- lapply(1:ncol(clean_loadings), function(i) {
-  # 获取该因子的所有变量负荷
+  # Get all variable loadings for this factor
   factor_loads <- clean_loadings[, i]
-  # 按照绝对值大小排序并取前N个
+  # Sort by absolute value size and take the top N
   top_indices <- order(abs(factor_loads), decreasing = TRUE)[1:top_n_variables]
   return(rownames(clean_loadings)[top_indices])
 })
 
-# 构建一个新的矩阵，只包含每个因子的顶部变量
+# Build a new matrix containing only the top variables for each factor
 top_vars_unique <- unique(unlist(top_vars_by_factor))
 top_loadings_matrix <- matrix(NA, nrow = length(top_vars_unique), ncol = ncol(clean_loadings))
 rownames(top_loadings_matrix) <- top_vars_unique
 colnames(top_loadings_matrix) <- colnames(clean_loadings)
 
-# 填充矩阵
+# Fill the matrix
 for (i in 1:length(top_vars_unique)) {
   var_name <- top_vars_unique[i]
   for (j in 1:ncol(clean_loadings)) {
@@ -452,42 +452,42 @@ for (i in 1:length(top_vars_unique)) {
   }
 }
 
-# 重命名列名为因子名称
+# Rename columns to factor names
 colnames(top_loadings_matrix) <- factor_names
 
-# 创建显示最重要变量的热图 - 增加宽度以确保所有文本完全显示
+# Create a heatmap showing the most important variables - increase width to ensure all text displays completely
 pdf(paste0(vis_dir, "/top_variables_heatmap.pdf"), width = 16, height = 10)
 corrplot(top_loadings_matrix, is.corr = FALSE,
          method = "color",
          col = colorRampPalette(c("#4575B4", "white", "#D73027"))(100),
          tl.col = "black", 
-         tl.srt = 0,  # 水平显示变量名
-         tl.cex = 0.8, # 调整文本大小
+         tl.srt = 0,  # Display variable names horizontally
+         tl.cex = 0.8, # Adjust text size
          cl.align.text = "l",
          title = "Top Loading Variables for Each Factor",
          mar = c(0, 0, 2, 0),
-         addCoef.col = "black",    # 添加数字标签
-         number.cex = 0.9,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels
+         number.cex = 0.9,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
-# 也保存为PNG - 增加宽度和分辨率
+# Also save as PNG - increase width and resolution
 png(paste0(vis_dir, "/top_variables_heatmap.png"), width = 1800, height = 1000, res = 150)
 corrplot(top_loadings_matrix, is.corr = FALSE,
          method = "color",
          col = colorRampPalette(c("#4575B4", "white", "#D73027"))(100),
          tl.col = "black", 
-         tl.srt = 0,  # 水平显示变量名
-         tl.cex = 0.8, # 调整文本大小
+         tl.srt = 0,  # Display variable names horizontally
+         tl.cex = 0.8, # Adjust text size
          cl.align.text = "l",
          title = "Top Loading Variables for Each Factor",
          mar = c(0, 0, 2, 0),
-         addCoef.col = "black",    # 添加数字标签
-         number.cex = 0.9,         # 调整数字大小
-         number.digits = 2)        # 显示2位小数
+         addCoef.col = "black",    # Add numerical labels
+         number.cex = 0.9,         # Adjust number size
+         number.digits = 2)        # Display 2 decimal places
 dev.off()
 
-# 创建一个表格，显示每个因子的顶部变量及其负荷值
+# Create a table showing the top variables for each factor and their loading values
 top_vars_table <- data.frame(Factor = character(),
                            Variable = character(),
                            Loading = numeric(),
@@ -497,14 +497,14 @@ for (i in 1:length(factor_names)) {
   factor_name <- factor_names[i]
   col_name <- colnames(clean_loadings)[i]
   
-  # 获取该因子的所有变量负荷
+  # Get all variable loadings for this factor
   factor_loads <- clean_loadings[, i]
-  # 按照绝对值大小排序并取前N个
+  # Sort by absolute value size and take the top N
   top_indices <- order(abs(factor_loads), decreasing = TRUE)[1:top_n_variables]
   top_vars <- rownames(clean_loadings)[top_indices]
   top_loads <- factor_loads[top_indices]
   
-  # 添加到表格
+  # Add to table
   for (j in 1:length(top_vars)) {
     top_vars_table <- rbind(top_vars_table, 
                           data.frame(Factor = factor_name,
@@ -514,7 +514,7 @@ for (i in 1:length(factor_names)) {
   }
 }
 
-# 保存表格
+# Save table
 write.csv(top_vars_table, paste0(tables_dir, "/top_variables_by_factor.csv"), row.names = FALSE)
 
 cat("\nEnhanced factor visualizations complete!\n")

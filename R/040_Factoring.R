@@ -39,45 +39,45 @@ cat("Loaded dataset with", nrow(data), "rows and", ncol(data), "columns.\n")
 # 2. Define variables for factor analysis ------------------------------------
 # Organization structure variables (numeric)
 numerical_org_vars <- c(
-  "ORG_Size_Employees",
-  "ORG_Complexity_Locations",
-  "ORG_Complexity_Departments",
-  "ORG_Hierarchy_Layers"
+  "ORG_Employees",
+  "ORG_Locations",
+  "ORG_Departments",
+  "ORG_Layers"
 )
 
 # Decision-making variables (Likert scale)
 ordinal_vars <- c(
-  # 决策分布变量 (Decision distribution variables)
-  "DEC_Authority_Dispersion", 
-  "DEC_Authority_Delegation",
-  "DEC_Process_InformalCommunication", 
-  "DEC_Process_InformalProcedures",
+  # Decision distribution variables
+  "DIST_Athority_Dispersion", 
+  "DIST_Athority_Delegation",
+  "DIST_Process_InformalCommunication", 
+  "DIST_Process_InformalProcedure",
   
-  # 决策风格变量 (Decision style variables)
-  "STY_Analytical_DataDriven",
-  "STY_Participative_Inclusion", 
-  "STY_Participative_Relational",
-  "STY_Organic_InformalStructure", 
-  "STY_Organic_Adaptability",
-  "STY_Directive_Threats", 
-  "STY_Directive_Compliance",
+  # Decision style variables
+  "STY_DataDriven",
+  "STY_Participation_Inclusion", 
+  "STY_Participation_Relational",
+  "STY_Adaptive_Informal", 
+  "STY_Adaptive_Changeable",
+  "STY_Authoritative_Threats", 
+  "STY_Authoritative_Compliance",
   
-  # 组织文化变量 (Organization culture variables)
-  "CUL_Authority_Hierarchical",
-  "CUL_Integration_Vision",
-  "CUL_Integration_Systematic",
-  "CUL_Innovation_Experimental",
-  "CUL_Collaboration_Stakeholder",
+  # Organizational culture variables
+  "CUL_Command",
+  "CUL_Symbolic",
+  "CUL_Formal",
+  "CUL_Experimental",
+  "CUL_Learning",
   
-  # 决策灵活性变量 (Decision flexibility variables)
-  "FLEX_Cognitive_Receptivity",
-  "FLEX_Behavioral_Adaptability",
+  # Decision flexibility variables
+  "FLEX_OpenToNewIdeas",
+  "FLEX_OpenToChanges",
   
-  # 风险与环境变量 (Risk and environment variables)
-  "RISK_Appetite_Investment",
-  "ENV_Context_Growth",
-  "ENV_Context_Volatility",
-  "ENV_Context_Stability"
+  # Risk and environment variables
+  "RISK_Tolerance",
+  "ENV_SustainedGrowth",
+  "ENV_HighriskIndustry",
+  "ENV_IndustryStability"
 )
 
 # 3. Prepare data for analysis ----------------------------------------------

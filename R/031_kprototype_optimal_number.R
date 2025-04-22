@@ -17,6 +17,19 @@ for (dir in dirs) {
   }
 }
 
+# Create helper function for saving plots to ensure correct directory usage
+save_plot <- function(plot, filename, width = 10, height = 7, dpi = 300) {
+  full_path <- file.path("results/figures/031_kprototype_optimal", filename)
+  ggsave(
+    filename = full_path,
+    plot = plot,
+    width = width,
+    height = height,
+    dpi = dpi
+  )
+  cat(paste("Saved plot to:", full_path, "\n"))
+}
+
 # Load the enhanced dataset
 data <- read.csv("data/BOAT2_Data_Enhanced.csv")
 cat("Loaded dataset with", nrow(data), "rows and", ncol(data), "columns.\n")
@@ -26,10 +39,10 @@ cat("Column names:", paste(head(colnames(data), 10), collapse=", "), "...\n")
 
 # Define numerical and categorical variables
 numerical_org_vars <- c(
-  "ORG_Size_Employees",
-  "ORG_Complexity_Locations",
-  "ORG_Complexity_Departments",
-  "ORG_Hierarchy_Layers"
+  "ORG_Employees",
+  "ORG_Locations",
+  "ORG_Departments",
+  "ORG_Layers"
 )
 
 # All variables except PDM_Selected and PDM experience variables
@@ -68,7 +81,7 @@ save_data(kproto_data, "031_kprototype_optimal/kproto_data.csv")
 # 4. Determine Optimal Number of Clusters -----------------------------------
 
 # Calculate Gower distance (suitable for mixed data types)
-cat("\n计算Gower距离矩阵...\n")
+cat("\nCalculating Gower distance matrix...\n")
 gower_dist <- daisy(kproto_mixed_data, metric = "gower")
 
 # PAM silhouette analysis for k=2 to k=9
@@ -77,9 +90,9 @@ pam_silhouette_results <- data.frame(
   avg_silhouette = numeric(8)
 )
 
-cat("\n运行PAM轮廓分析，k=2至k=9...\n")
+cat("\nRunning PAM silhouette analysis, k=2 to k=9...\n")
 for (k in 2:9) {
-  cat("  处理k =", k, "...\n")
+  cat("  Processing k =", k, "...\n")
   pam_fit <- pam(gower_dist, k = k, diss = TRUE)
   pam_silhouette_results$avg_silhouette[k-1] <- pam_fit$silinfo$avg.width
 }
@@ -94,12 +107,12 @@ optimal_k_silhouette <- pam_silhouette_results$k[which.max(pam_silhouette_result
 pam_silhouette_plot <- ggplot(pam_silhouette_results, aes(x = k, y = avg_silhouette)) +
   geom_line() +
   geom_point(size = 3) +
-  # 强调最优k值处的点
+  # Highlight the optimal k point
   geom_point(data = data.frame(k = optimal_k_silhouette, 
                               avg_silhouette = pam_silhouette_results$avg_silhouette[optimal_k_silhouette - 1]), 
              aes(x = k, y = avg_silhouette), 
              color = "red", size = 4) +
-  # 添加标注
+  # Add annotation
   annotate("text", x = optimal_k_silhouette + 0.3, 
            y = pam_silhouette_results$avg_silhouette[optimal_k_silhouette - 1], 
            label = paste("Optimal k =", optimal_k_silhouette), 
@@ -110,33 +123,27 @@ pam_silhouette_plot <- ggplot(pam_silhouette_results, aes(x = k, y = avg_silhoue
     x = "Number of Clusters (k)",
     y = "Average Silhouette Width"
   ) +
-  # 设置x轴为整数刻度，与elbow图保持一致
+  # Set x-axis to integer ticks, consistent with elbow plot
   scale_x_continuous(breaks = 2:9, labels = 2:9, limits = c(1.5, 9.5)) +
   theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
     plot.subtitle = element_text(color = "gray30"),
     axis.title = element_text(face = "bold"),
-    # 确保x轴标签显示清晰
+    # Ensure x-axis labels display clearly
     axis.text.x = element_text(size = 12),
-    # 添加轻微的垂直网格线帮助识别整数k值
+    # Add slight vertical grid lines to help identify integer k values
     panel.grid.minor = element_blank(),
     panel.grid.major.x = element_line(color = "gray90", size = 0.5)
   )
 
 # Save PAM silhouette plot
-ggsave(
-  "results/figures/031_kprototype_optimal/silhouette_plot.pdf",
-  pam_silhouette_plot,
-  width = 10,
-  height = 7,
-  dpi = 300
-)
-cat("PAM轮廓分析图保存成功\n")
+save_plot(pam_silhouette_plot, "silhouette_plot.pdf")
+cat("PAM silhouette analysis plot saved successfully\n")
 
 # Elbow method for k=1 to k=10 using K-Prototype's own cost function
 # This is methodologically more consistent than using K-means on projected distances
-cat("\n运行Elbow方法分析，k=2至k=10，使用K-Prototype...\n")
+cat("\nRunning Elbow method analysis, k=2 to k=10, using K-Prototype...\n")
 wss_results <- data.frame(
   k = 2:10,
   tot_withinss = numeric(9)
@@ -148,7 +155,7 @@ set.seed(123)
 # Run K-Prototype for different k values and extract the total within-cluster sum of squares
 for (i in 1:9) {
   k_value <- i + 1  # Starting from k=2
-  cat("  处理k =", k_value, "...\n")
+  cat("  Processing k =", k_value, "...\n")
   
   # Run K-Prototype clustering
   kproto_result <- clustMixType::kproto(
@@ -194,12 +201,12 @@ optimal_k_elbow <- which.max(slope_changes) + 2  # +2 because we start at k=2 an
 elbow_plot <- ggplot(wss_full_results, aes(x = k, y = tot_withinss)) +
   geom_line() +
   geom_point(size = 3) +
-  # 强调k=optimal_k_elbow处的点
+  # Highlight the k=optimal_k_elbow point
   geom_point(data = data.frame(k = optimal_k_elbow, 
                               tot_withinss = wss_full_results$tot_withinss[optimal_k_elbow]), 
              aes(x = k, y = tot_withinss), 
              color = "red", size = 4) +
-  # 添加标注
+  # Add annotation
   annotate("text", x = optimal_k_elbow + 0.3, 
            y = wss_full_results$tot_withinss[optimal_k_elbow], 
            label = paste("Optimal k =", optimal_k_elbow), 
@@ -210,46 +217,42 @@ elbow_plot <- ggplot(wss_full_results, aes(x = k, y = tot_withinss)) +
     x = "Number of Clusters (k)",
     y = "Total Within-Cluster Sum of Squares"
   ) +
-  # 设置x轴为整数刻度，并确保范围从1到10
+  # Set x-axis to integer ticks, and ensure range from 1 to 10
   scale_x_continuous(breaks = 1:10, labels = 1:10, limits = c(1, 10)) +
   theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
     plot.subtitle = element_text(color = "gray30"),
     axis.title = element_text(face = "bold"),
-    # 确保x轴标签显示清晰
+    # Ensure x-axis labels display clearly
     axis.text.x = element_text(size = 12),
-    # 添加轻微的垂直网格线帮助识别整数k值
+    # Add slight vertical grid lines to help identify integer k values
     panel.grid.minor = element_blank(),
     panel.grid.major.x = element_line(color = "gray90", size = 0.5)
   )
 
 # Save elbow plot
-ggsave(
-  "results/figures/031_kprototype_optimal/elbow_plot.pdf",
-  elbow_plot,
-  width = 10,
-  height = 7,
-  dpi = 300
-)
-cat("Elbow方法分析图保存成功\n")
+save_plot(elbow_plot, "elbow_plot.pdf")
+cat("Elbow method analysis plot saved successfully\n")
 
 # Generate a combined plot with both methods
+# FIXED: Using print() to ensure the combined plot is rendered to the correct device
+combined_plot_path <- file.path("results/figures/031_kprototype_optimal", "combined_cluster_analysis.pdf")
+
+# Explicitly create the PDF device
+pdf(combined_plot_path, width = 12, height = 14)
+
+# Create the combined plot with grid.arrange
 combined_plot <- gridExtra::grid.arrange(
   elbow_plot + ggtitle("A) Elbow Method (K-Prototype)"),
   pam_silhouette_plot + ggtitle("B) Silhouette Method"),
   ncol = 1
 )
 
-# Save combined plot
-ggsave(
-  "results/figures/031_kprototype_optimal/combined_cluster_analysis.pdf",
-  combined_plot,
-  width = 12,
-  height = 14,
-  dpi = 300
-)
-cat("组合分析图保存成功\n")
+# Explicitly close the PDF device
+dev.off()
+
+cat("Combined analysis plot saved to:", combined_plot_path, "\n")
 
 # Save optimal k values to a file for reference in next script
 optimal_k_data <- data.frame(
@@ -260,10 +263,10 @@ optimal_k_data <- data.frame(
 save_data(optimal_k_data, "031_kprototype_optimal/optimal_k.csv")
 
 # Print results
-cat("\n聚类分析结果:\n")
+cat("\nClustering analysis results:\n")
 cat("---------------------------\n")
-cat("轮廓方法最佳聚类数k:", optimal_k_silhouette, "\n")
-cat("Elbow方法最佳聚类数k:", optimal_k_elbow, "\n")
-cat("\n分析完成!\n")
-cat("可视化结果保存至: results/figures/031_kprototype_optimal/\n")
-cat("数据结果保存至: results/tables/031_kprototype_optimal/\n") 
+cat("Best cluster number k from silhouette method:", optimal_k_silhouette, "\n")
+cat("Best cluster number k from elbow method:", optimal_k_elbow, "\n")
+cat("\nAnalysis complete!\n")
+cat("Visualization results saved to: results/figures/031_kprototype_optimal/\n")
+cat("Data results saved to: results/tables/031_kprototype_optimal/\n") 

@@ -43,52 +43,52 @@ cat("Loaded dataset with", nrow(data), "rows and", ncol(data), "columns.\n")
 # 2. Define variable groups ---------------------------------------------------
 # Organization structure variables
 org_vars <- c(
-  "ORG_Size_Employees",
-  "ORG_Complexity_Locations",
-  "ORG_Complexity_Departments",
-  "ORG_Hierarchy_Layers"
+  "ORG_Employees",
+  "ORG_Locations",
+  "ORG_Departments",
+  "ORG_Layers"
 )
 
 # Decision variables
 dec_vars <- c(
-  "DEC_Authority_Dispersion",
-  "DEC_Authority_Delegation",
-  "DEC_Process_InformalCommunication",
-  "DEC_Process_InformalProcedures"
+  "DIST_Athority_Dispersion",
+  "DIST_Athority_Delegation",
+  "DIST_Process_InformalCommunication",
+  "DIST_Process_InformalProcedure"
 )
 
 # Style variables
 sty_vars <- c(
-  "STY_Analytical_DataDriven",
-  "STY_Participative_Inclusion",
-  "STY_Participative_Relational",
-  "STY_Organic_InformalStructure",
-  "STY_Organic_Adaptability",
-  "STY_Directive_Threats",
-  "STY_Directive_Compliance"
+  "STY_DataDriven",
+  "STY_Participation_Inclusion",
+  "STY_Participation_Relational",
+  "STY_Adaptive_Informal",
+  "STY_Adaptive_Changeable",
+  "STY_Authoritative_Threats",
+  "STY_Authoritative_Compliance"
 )
 
 # Culture variables
 cul_vars <- c(
-  "CUL_Authority_Hierarchical",
-  "CUL_Integration_Vision",
-  "CUL_Integration_Systematic",
-  "CUL_Innovation_Experimental",
-  "CUL_Collaboration_Stakeholder"
+  "CUL_Command",
+  "CUL_Symbolic",
+  "CUL_Formal",
+  "CUL_Experimental",
+  "CUL_Learning"
 )
 
 # Flexibility variables
 flex_vars <- c(
-  "FLEX_Cognitive_Receptivity",
-  "FLEX_Behavioral_Adaptability"
+  "FLEX_OpenToNewIdeas",
+  "FLEX_OpenToChanges"
 )
 
 # Risk and environment variables
 risk_env_vars <- c(
-  "RISK_Appetite_Investment",
-  "ENV_Context_Growth",
-  "ENV_Context_Volatility",
-  "ENV_Context_Stability"
+  "RISK_Tolerance",
+  "ENV_SustainedGrowth",
+  "ENV_HighriskIndustry",
+  "ENV_IndustryStability"
 )
 
 # PDM variables (to exclude from clustering)
@@ -226,42 +226,42 @@ format_variable_names <- function(var_names) {
   # Create mapping for better formatting
   name_mappings <- list(
     # Decision variables
-    "DEC_Authority_Dispersion" = "DEC\nAuthority\nDispersion",
-    "DEC_Authority_Delegation" = "DEC\nAuthority\nDelegation",
-    "DEC_Process_InformalCommunication" = "DEC\nProcess\nInformalComm",
-    "DEC_Process_InformalProcedures" = "DEC\nProcess\nInformalProc",
+    "DIST_Athority_Dispersion" = "DIST\nAuthority\nDispersion",
+    "DIST_Athority_Delegation" = "DIST\nAuthority\nDelegation",
+    "DIST_Process_InformalCommunication" = "DIST\nProcess\nInformalComm",
+    "DIST_Process_InformalProcedure" = "DIST\nProcess\nInformalProc",
     
     # Style variables
-    "STY_Analytical_DataDriven" = "STY\nAnalytical\nDataDriven",
-    "STY_Participative_Inclusion" = "STY\nParticipative\nInclusion",
-    "STY_Participative_Relational" = "STY\nParticipative\nRelational",
-    "STY_Organic_InformalStructure" = "STY\nOrganic\nInformalStructure",
-    "STY_Organic_Adaptability" = "STY\nOrganic\nAdaptability",
-    "STY_Directive_Threats" = "STY\nDirective\nThreats",
-    "STY_Directive_Compliance" = "STY\nDirective\nCompliance",
+    "STY_DataDriven" = "STY\nData\nDriven",
+    "STY_Participation_Inclusion" = "STY\nParticipation\nInclusion",
+    "STY_Participation_Relational" = "STY\nParticipation\nRelational",
+    "STY_Adaptive_Informal" = "STY\nAdaptive\nInformal",
+    "STY_Adaptive_Changeable" = "STY\nAdaptive\nChangeable",
+    "STY_Authoritative_Threats" = "STY\nAuthoritative\nThreats",
+    "STY_Authoritative_Compliance" = "STY\nAuthoritative\nCompliance",
     
     # Culture variables
-    "CUL_Authority_Hierarchical" = "CUL\nAuthority\nHierarchical",
-    "CUL_Integration_Vision" = "CUL\nIntegration\nVision",
-    "CUL_Integration_Systematic" = "CUL\nIntegration\nSystematic",
-    "CUL_Innovation_Experimental" = "CUL\nInnovation\nExperimental",
-    "CUL_Collaboration_Stakeholder" = "CUL\nCollaboration\nStakeholder",
+    "CUL_Command" = "CUL\nCommand",
+    "CUL_Symbolic" = "CUL\nSymbolic",
+    "CUL_Formal" = "CUL\nFormal",
+    "CUL_Experimental" = "CUL\nExperimental",
+    "CUL_Learning" = "CUL\nLearning",
     
     # Flexibility variables
-    "FLEX_Cognitive_Receptivity" = "FLEX\nCognitive\nReceptivity",
-    "FLEX_Behavioral_Adaptability" = "FLEX\nBehavioral\nAdaptability",
+    "FLEX_OpenToNewIdeas" = "FLEX\nOpen To\nNew Ideas",
+    "FLEX_OpenToChanges" = "FLEX\nOpen To\nChanges",
     
     # Risk and environment variables
-    "RISK_Appetite_Investment" = "RISK\nAppetite\nInvestment",
-    "ENV_Context_Growth" = "ENV\nContext\nGrowth",
-    "ENV_Context_Volatility" = "ENV\nContext\nVolatility",
-    "ENV_Context_Stability" = "ENV\nContext\nStability",
+    "RISK_Tolerance" = "RISK\nTolerance",
+    "ENV_SustainedGrowth" = "ENV\nSustained\nGrowth",
+    "ENV_HighriskIndustry" = "ENV\nHighrisk\nIndustry",
+    "ENV_IndustryStability" = "ENV\nIndustry\nStability",
     
     # Organization structure
-    "ORG_Size_Employees" = "ORG\nSize\nEmployees",
-    "ORG_Complexity_Locations" = "ORG\nComplexity\nLocations",
-    "ORG_Complexity_Departments" = "ORG\nComplexity\nDepartments",
-    "ORG_Hierarchy_Layers" = "ORG\nHierarchy\nLayers"
+    "ORG_Employees" = "ORG\nEmployees",
+    "ORG_Locations" = "ORG\nLocations",
+    "ORG_Departments" = "ORG\nDepartments",
+    "ORG_Layers" = "ORG\nLayers"
   )
   
   # Apply mappings
@@ -281,58 +281,58 @@ format_variable_names <- function(var_names) {
 create_radar_chart <- function(data, group_name, variables, title = NULL, scale_min = 1, scale_max = 5, 
                                width = 10, height = 8) {
   
-  # 确保数据是数据框，并且将行名设置好
+  # Ensure data is a dataframe and set row names
   if(!is.data.frame(data)) {
     data <- as.data.frame(data)
   }
   
-  # 检查并确保所有变量存在
+  # Check and ensure all variables exist
   missing_vars <- variables[!variables %in% colnames(data)]
   if(length(missing_vars) > 0) {
-    cat("警告: 变量不存在:", paste(missing_vars, collapse=", "), "\n")
+    cat("Warning: Variables don't exist:", paste(missing_vars, collapse=", "), "\n")
     variables <- variables[variables %in% colnames(data)]
     if(length(variables) == 0) {
-      cat("错误: 没有可用的变量来创建雷达图\n")
+      cat("Error: No usable variables to create radar chart\n")
       return(NULL)
     }
   }
   
-  # 数据准备 - 确保是正确的数据框格式
+  # Data preparation - ensure correct dataframe format
   radar_data <- data.frame(data[, variables, drop=FALSE])
   
-  # 将数据框转换为矩阵以便于操作
+  # Convert dataframe to matrix for easier manipulation
   radar_matrix <- as.matrix(radar_data)
   
-  # 添加最大值和最小值行
+  # Add max and min value rows
   max_min_matrix <- rbind(
-    rep(scale_max, length(variables)),  # 最大值
-    rep(scale_min, length(variables)),  # 最小值
+    rep(scale_max, length(variables)),  # Max value
+    rep(scale_min, length(variables)),  # Min value
     radar_matrix
   )
   
-  # 转换回数据框并设置行名列名
+  # Convert back to dataframe and set row/column names
   radar_data_final <- as.data.frame(max_min_matrix)
   rownames(radar_data_final) <- c("max", "min", rownames(data))
   colnames(radar_data_final) <- variables
   
-  # 格式化变量名
+  # Format variable names
   formatted_names <- format_variable_names(variables)
   colnames(radar_data_final) <- formatted_names
   
-  # 定义集群颜色
-  cluster_colors <- c("#4285F4", "#EA4335")  # 集群1和2的Google颜色
+  # Define cluster colors
+  cluster_colors <- c("#4285F4", "#EA4335")  # Google colors for clusters 1 and 2
   
-  # 创建并保存雷达图
+  # Create and save radar chart
   filename <- paste0("results/figures/035_fuzzy_cmeans/radar_", 
                     gsub(" ", "_", tolower(group_name)), ".pdf")
   
-  # 确保图形设备被正确打开和关闭
+  # Ensure graphics device is properly opened and closed
   pdf(filename, width = width, height = height)
   
-  # 设置绘图参数
+  # Set plot parameters
   par(mar = c(2, 2, 3, 2))
   
-  # 绘制雷达图
+  # Draw radar chart
   tryCatch({
     radarchart(
       radar_data_final,
@@ -353,7 +353,7 @@ create_radar_chart <- function(data, group_name, variables, title = NULL, scale_
       titlecex = 1.4
     )
     
-    # 添加图例
+    # Add legend
     legend(
       "bottomright",
       legend = rownames(data),
@@ -365,23 +365,23 @@ create_radar_chart <- function(data, group_name, variables, title = NULL, scale_
       box.lty = 0
     )
   }, error = function(e) {
-    cat("绘制雷达图时出错:", e$message, "\n")
+    cat("Error drawing radar chart:", e$message, "\n")
   })
   
-  # 确保设备关闭
+  # Ensure device is closed
   dev.off()
   
-  # 也保存为PNG以便于查看
+  # Also save as PNG for easier viewing
   png_filename <- paste0("results/figures/035_fuzzy_cmeans/radar_", 
                        gsub(" ", "_", tolower(group_name)), ".png")
   
-  # 打开PNG设备
+  # Open PNG device
   png(png_filename, width = width * 100, height = height * 100)
   
-  # 设置绘图参数
+  # Set plot parameters
   par(mar = c(2, 2, 3, 2))
   
-  # 绘制雷达图到PNG
+  # Draw radar chart to PNG
   tryCatch({
     radarchart(
       radar_data_final,
@@ -402,7 +402,7 @@ create_radar_chart <- function(data, group_name, variables, title = NULL, scale_
       titlecex = 1.4
     )
     
-    # 添加图例
+    # Add legend
     legend(
       "bottomright",
       legend = rownames(data),
@@ -414,13 +414,13 @@ create_radar_chart <- function(data, group_name, variables, title = NULL, scale_
       box.lty = 0
     )
   }, error = function(e) {
-    cat("绘制PNG雷达图时出错:", e$message, "\n")
+    cat("Error drawing PNG radar chart:", e$message, "\n")
   })
   
-  # 确保PNG设备关闭
+  # Ensure PNG device is closed
   dev.off()
   
-  cat(paste0("  创建了", group_name, "的雷达图，保存到", filename, "和", png_filename, "\n"))
+  cat(paste0("  Created radar chart for ", group_name, ", saved to ", filename, " and ", png_filename, "\n"))
   
   return(filename)
 }
@@ -500,7 +500,7 @@ create_pdm_distribution_chart <- function() {
     "Integrated Project Delivery (IPD)" = "#6A95CA" # Blue (IPD)
   )
   
-  # Define short PDM names for legend
+  # Create short PDM names for labels
   pdm_short_names <- c(
     "Design-Bid-Build" = "DBB",
     "Construction Manager @ Risk" = "CMAR",
@@ -509,89 +509,136 @@ create_pdm_distribution_chart <- function() {
     "Integrated Project Delivery (IPD)" = "IPD"
   )
   
-  # Create PDF file
-  pdf_file <- "results/figures/035_fuzzy_cmeans/pdm_distribution.pdf"
-  pdf(pdf_file, width = 12, height = 8)
-  
-  # Create stacked bar chart
-  plot <- ggplot(pdm_df, aes(x = Cluster, y = Percentage, fill = PDM)) +
+  # Create the plot
+  p <- ggplot(pdm_df, aes(x = Cluster, y = Percentage, fill = PDM)) +
     geom_bar(stat = "identity", position = "stack") +
     scale_fill_manual(values = pdm_colors, labels = pdm_short_names) +
     labs(
-      title = "Project Delivery Method Distribution by Cluster",
+      title = "PDM Distribution by Fuzzy C-means Cluster",
+      subtitle = paste0("Cluster sizes: ", paste(paste("Cluster", names(cluster_sizes), "=", cluster_sizes), collapse = ", ")),
       x = "Cluster",
-      y = "Percentage (%)",
+      y = "Percentage",
       fill = "Project Delivery Method"
     ) +
     theme_minimal() +
     theme(
-      plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-      axis.title = element_text(face = "bold"),
-      legend.position = "right",
-      legend.title = element_text(face = "bold")
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+      legend.position = "bottom"
+    ) +
+    # Add percentage labels
+    geom_text(
+      aes(label = sprintf("%.1f%%", Percentage)),
+      position = position_stack(vjust = 0.5),
+      color = "white",
+      fontface = "bold"
     )
   
-  # Print the plot to PDF
-  print(plot)
-  dev.off()
+  # Save the plot
+  pdf_file <- paste0("results/figures/035_fuzzy_cmeans/pdm_distribution.pdf")
+  ggsave(pdf_file, p, width = 10, height = 8)
   
-  # Create PNG version
-  png_file <- "results/figures/035_fuzzy_cmeans/pdm_distribution.png"
-  png(png_file, width = 1200, height = 800)
-  print(plot)
-  dev.off()
+  # Also save as PNG
+  png_file <- paste0("results/figures/035_fuzzy_cmeans/pdm_distribution.png")
+  ggsave(png_file, p, width = 10, height = 8)
   
-  cat(paste0("  PDM distribution chart saved to ", pdf_file, " and ", png_file, "\n"))
+  cat("PDM distribution chart saved to", pdf_file, "and", png_file, "\n")
   
-  return(plot)
+  return(p)
 }
 
 # Generate PDM distribution chart
-pdm_distribution <- create_pdm_distribution_chart()
+pdm_dist_plot <- create_pdm_distribution_chart()
 
-# 10. Print cluster summary ---------------------------------------------------
-cat("\nCluster Summary:\n")
-for (i in 1:k) {
-  cat(paste0("Cluster ", i, ": ", cluster_sizes[i], " observations\n"))
+# 10. Create PDM experience analysis ------------------------------------------
+cat("Creating PDM experience analysis...\n")
+
+create_pdm_experience_chart <- function() {
+  # Calculate mean PDM experience by cluster
+  pdm_exp_vars <- c("PDM_Experience_DBB", "PDM_Experience_DB", 
+                   "PDM_Experience_PDB", "PDM_Experience_CMAR", 
+                   "PDM_Experience_IPD")
   
-  # Display top PDMs for this cluster
-  cluster_pdms <- sort(table(data$PDM_Selected[data$Cluster == i]), decreasing = TRUE)
-  cluster_pdm_pct <- round(prop.table(cluster_pdms) * 100, 1)
+  pdm_exp_summary <- data %>%
+    group_by(Cluster) %>%
+    summarise(across(all_of(pdm_exp_vars), 
+                     list(mean = ~mean(., na.rm = TRUE)),
+                     .names = "{.col}_{.fn}")) %>%
+    ungroup()
   
-  cat("  Top PDMs:\n")
-  for (j in 1:min(length(cluster_pdms), 3)) {
-    cat(paste0("    ", names(cluster_pdms)[j], ": ", 
-              cluster_pdms[j], " (", cluster_pdm_pct[j], "%)\n"))
-  }
+  # Save PDM experience summary
+  pdm_exp_file <- "results/tables/035_fuzzy_cmeans/pdm_experience_by_cluster.csv"
+  write.csv(pdm_exp_summary, pdm_exp_file, row.names = FALSE)
   
-  # Show key features (variables with extreme values)
-  cat("  Key features:\n")
+  # Reshape data for plotting
+  pdm_exp_long <- pdm_exp_summary %>%
+    pivot_longer(
+      cols = -Cluster,
+      names_to = "Experience_Type",
+      values_to = "Mean_Value"
+    ) %>%
+    mutate(
+      Experience_Type = gsub("PDM_Experience_(.+)_mean", "\\1", Experience_Type)
+    )
   
-  # For organization variables (high/low compared to other cluster)
-  for (var in org_vars) {
-    val <- cluster_centers[var, i]
-    other_val <- cluster_centers[var, (i %% k) + 1]  # Other cluster
-    
-    if (val > other_val * 1.5) {
-      cat(paste0("    High ", var, ": ", round(val, 2), "\n"))
-    } else if (val < other_val * 0.7) {
-      cat(paste0("    Low ", var, ": ", round(val, 2), "\n"))
-    }
-  }
+  # Define PDM experience colors to match PDM distribution
+  pdm_exp_colors <- c(
+    "DBB" = "#D46A6A",   # Red
+    "CMAR" = "#E3C567",  # Yellow
+    "DB" = "#9CCF9C",    # Light green
+    "PDB" = "#4A8F4A",   # Dark green
+    "IPD" = "#6A95CA"    # Blue
+  )
   
-  # For Likert scale variables (high/low on the scale)
-  for (var in likert_vars) {
-    val <- cluster_centers[var, i]
-    
-    if (val >= 4.0) {
-      cat(paste0("    High ", var, ": ", round(val, 2), "\n"))
-    } else if (val <= 2.0) {
-      cat(paste0("    Low ", var, ": ", round(val, 2), "\n"))
-    }
-  }
+  # Create order for PDM experience
+  pdm_exp_order <- c("DBB", "CMAR", "DB", "PDB", "IPD")
+  pdm_exp_long$Experience_Type <- factor(pdm_exp_long$Experience_Type, levels = pdm_exp_order)
   
-  cat("\n")
+  # Create the plot
+  p <- ggplot(pdm_exp_long, aes(x = Experience_Type, y = Mean_Value, fill = Experience_Type)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ Cluster, labeller = labeller(Cluster = function(x) paste0("Cluster ", x))) +
+    scale_fill_manual(values = pdm_exp_colors) +
+    labs(
+      title = "Mean PDM Experience by Fuzzy C-means Cluster",
+      subtitle = "Higher values indicate more experience with a PDM type",
+      x = "Project Delivery Method",
+      y = "Mean Experience Score",
+      fill = "PDM Type"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(hjust = 0.5, color = "gray40"),
+      legend.position = "bottom",
+      strip.background = element_rect(fill = "#F5F5F5"),
+      strip.text = element_text(face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    ) +
+    # Add value labels
+    geom_text(
+      aes(label = sprintf("%.2f", Mean_Value)),
+      vjust = -0.5,
+      color = "black"
+    )
+  
+  # Save the plot
+  pdf_file <- paste0("results/figures/035_fuzzy_cmeans/pdm_experience.pdf")
+  ggsave(pdf_file, p, width = 10, height = 8)
+  
+  # Also save as PNG
+  png_file <- paste0("results/figures/035_fuzzy_cmeans/pdm_experience.png")
+  ggsave(png_file, p, width = 10, height = 8)
+  
+  cat("PDM experience chart saved to", pdf_file, "and", png_file, "\n")
+  
+  return(p)
 }
 
-cat("Fuzzy C-means clustering and visualization complete!\n")
-cat("Analysis results saved to results/tables/035_fuzzy_cmeans and results/figures/035_fuzzy_cmeans directories\n")
+# Generate PDM experience chart
+pdm_exp_plot <- create_pdm_experience_chart()
+
+# Print completion message
+cat("\nFuzzy C-means clustering analysis complete!\n")
+cat("Results saved to: results/tables/035_fuzzy_cmeans/\n")
+cat("Visualizations saved to: results/figures/035_fuzzy_cmeans/\n")

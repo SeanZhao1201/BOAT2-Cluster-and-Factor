@@ -30,10 +30,10 @@ cat("Will analyze using the following k values:", paste(kproto_k_values, collaps
 # Define numerical and categorical variables
 # Organization structure variables (true numeric variables)
 numerical_org_vars <- c(
-  "ORG_Size_Employees",
-  "ORG_Complexity_Locations",
-  "ORG_Complexity_Departments",
-  "ORG_Hierarchy_Layers"
+  "ORG_Employees",
+  "ORG_Locations",
+  "ORG_Departments",
+  "ORG_Layers"
 )
 
 # All variables except PDM_Selected and PDM experience variables
@@ -138,28 +138,28 @@ run_kproto_analysis <- function(k_value) {
   # Calculate cluster medians for Likert variables
   cat("  Calculating cluster medians...\n")
   
-  # 创建一个数据框来存储中位数
+  # Create a dataframe to store medians
   medians <- data.frame(
     Cluster = 1:k_value
   )
   
-  # 为每个变量计算中位数
+  # Calculate medians for each variable
   all_analysis_vars <- c(numerical_org_vars, categorical_vars)
   for (var in all_analysis_vars) {
-    # 对每个聚类计算变量的中位数
+    # Calculate the median of the variable for each cluster
     for (cl in 1:k_value) {
       cluster_data <- cluster_results[cluster_results$Cluster == cl, var]
       if (var == all_analysis_vars[1]) {
-        # 第一个变量时初始化该聚类的行
+        # Initialize row for this cluster with first variable
         medians[medians$Cluster == cl, var] <- median(cluster_data, na.rm = TRUE)
       } else {
-        # 后续变量添加到已有的行
+        # Add to existing row for subsequent variables
         medians[medians$Cluster == cl, var] <- median(cluster_data, na.rm = TRUE)
       }
     }
   }
   
-  # 保存中位数数据
+  # Save median data
   save_data(
     medians, 
     paste0("032_kprototype_analysis/kproto_medians_k", k_value, ".csv")
@@ -197,7 +197,7 @@ create_pdm_plot <- function(cluster_results, k) {
     "Integrated Project Delivery (IPD)"  # Top
   )
   
-  # Define PDM名称与简写的映射
+  # Define PDM names to abbreviations mapping
   pdm_short_names <- c(
     "Design-Bid-Build" = "DBB",
     "Construction Manager @ Risk" = "CMAR",
@@ -208,11 +208,11 @@ create_pdm_plot <- function(cluster_results, k) {
   
   # Create color palette with low saturation colors as requested
   pdm_colors <- c(
-    "Design-Bid-Build" = "#D46A6A",             # 红色 (DBB)
-    "Construction Manager @ Risk" = "#E3C567",  # 黄色 (CMAR)
-    "Design-Build" = "#9CCF9C",                 # 浅绿色 (DB)
-    "Progressive Design-Build" = "#4A8F4A",     # 深绿色 (PDB)
-    "Integrated Project Delivery (IPD)" = "#6A95CA" # 蓝色 (IPD)
+    "Design-Bid-Build" = "#D46A6A",             # Red (DBB)
+    "Construction Manager @ Risk" = "#E3C567",  # Yellow (CMAR)
+    "Design-Build" = "#9CCF9C",                 # Light green (DB)
+    "Progressive Design-Build" = "#4A8F4A",     # Dark green (PDB)
+    "Integrated Project Delivery (IPD)" = "#6A95CA" # Blue (IPD)
   )
   
   # Create base data for plotting - start from scratch
@@ -305,7 +305,7 @@ create_pdm_plot <- function(cluster_results, k) {
     # Set colors
     scale_fill_manual(
       values = pdm_colors,
-      # 使用简写名称作为图例标签
+      # Use abbreviations as legend labels
       labels = pdm_short_names
     ) +
     # Configure axes
@@ -352,7 +352,7 @@ cat("\nStarting cluster centroids and medians visualization...\n")
 
 # Function to create centroids visualization
 create_centroids_plot <- function(centroids, k, is_median = FALSE) {
-  # 确定标题类型
+  # Determine title type
   plot_type <- ifelse(is_median, "Medians", "Centroids")
   
   # Gather the data for easier plotting
@@ -368,7 +368,7 @@ create_centroids_plot <- function(centroids, k, is_median = FALSE) {
     mutate(
       VariableGroup = case_when(
         Variable %in% numerical_org_vars ~ "Organization Structure",
-        grepl("^DEC_", Variable) ~ "Decision Distribution",
+        grepl("^DIST_", Variable) ~ "Decision Distribution",
         grepl("^STY_", Variable) ~ "Decision Style",
         grepl("^CUL_", Variable) ~ "Organization Culture",
         grepl("^FLEX_", Variable) ~ "Decision Flexibility",
@@ -504,188 +504,157 @@ perform_statistical_analysis <- function(k) {
         Significant = p_value < 0.05,
         stringsAsFactors = FALSE
       ))
-      
-      return(stat_results)
     }
     
-    return(NULL)
+    return(stat_results)
   }
   
-  # Function to run Chi-square test for categorical variables (PDM_Selected)
-  run_chi_square <- function() {
-    chi_test <- chisq.test(table(cluster_results$PDM_Selected, cluster_results$Cluster))
+  # Function to run Kruskal-Wallis test for categorical variables
+  run_kruskal <- function(variable) {
+    # Convert to numeric for Kruskal-Wallis
+    cluster_results[[variable]] <- as.numeric(cluster_results[[variable]])
+    
+    # Run Kruskal-Wallis test
+    kw_result <- kruskal.test(as.formula(paste(variable, "~ factor(Cluster)")), data = cluster_results)
+    
+    # Extract results
+    chi_squared <- kw_result$statistic
+    p_value <- kw_result$p.value
     
     # Add to results
     stat_results <- rbind(stat_results, data.frame(
-      Variable = "PDM_Selected",
-      Test = "Chi-square",
-      Statistic = chi_test$statistic,
-      P_Value = chi_test$p.value,
-      Significant = chi_test$p.value < 0.05,
+      Variable = variable,
+      Test = "Kruskal-Wallis",
+      Statistic = chi_squared,
+      P_Value = p_value,
+      Significant = p_value < 0.05,
       stringsAsFactors = FALSE
     ))
     
     return(stat_results)
   }
   
-  # Run ANOVA for numerical organization variables
+  # Run appropriate tests for each variable
   for (var in numerical_org_vars) {
-    cat("   Analyzing organizational structure variable:", var, "\n")
-    temp_results <- run_anova(var)
-    if (!is.null(temp_results)) {
-      stat_results <- temp_results
-    }
+    stat_results <- run_anova(var)
   }
   
-  # Run ANOVA for categorical decision variables
   for (var in categorical_vars) {
-    cat("   Analyzing decision variable:", var, "\n")
-    temp_results <- run_anova(var)
-    if (!is.null(temp_results)) {
-      stat_results <- temp_results
-    }
+    stat_results <- run_kruskal(var)
   }
   
-  # Run Chi-square test for PDM_Selected
-  cat("   Analyzing PDM_Selected\n")
-  temp_results <- run_chi_square()
-  if (!is.null(temp_results)) {
-    stat_results <- temp_results
-  }
+  # Save statistical test results
+  save_data(stat_results, paste0("032_kprototype_analysis/statistical_tests_k", k, ".csv"))
   
-  # Save statistical results
-  save_data(
-    stat_results, 
-    paste0("032_kprototype_analysis/statistical_tests_k", k, ".csv")
-  )
-  
-  # Create visualization of statistical results
+  # Create visualization of test results
   if (nrow(stat_results) > 0) {
-    # Sort by p-value
-    stat_results <- stat_results[order(stat_results$P_Value), ]
+    # Order by significance and p-value
+    stat_results <- stat_results %>%
+      arrange(Significant, P_Value)
     
-    # Create plot of significant variables
+    # Create bar plot of p-values
     p <- ggplot(stat_results, aes(x = reorder(Variable, -P_Value), y = -log10(P_Value), fill = Significant)) +
-      geom_bar(stat = "identity", alpha = 0.9) +
-      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "#D55E00", size = 1) +
-      scale_fill_manual(values = c("#BBBBBB", "#2D708E"), labels = c("No", "Yes")) +
+      geom_bar(stat = "identity") +
+      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("gray70", "#4285F4")) +
       labs(
-        title = paste0("Cluster Difference Significance Analysis (k=", k, ")"),
-        subtitle = "Bar height represents significance of differences; red line is p=0.05 significance level",
+        title = paste0("Statistical Tests for Cluster Differences (k=", k, ")"),
+        subtitle = "Higher bars indicate stronger evidence of differences between clusters",
         x = "Variable",
         y = "-log10(p-value)",
-        fill = "Significant Difference"
+        fill = "Significant at α=0.05"
       ) +
       theme_minimal() +
       theme(
         plot.title = element_text(face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(hjust = 0.5, color = "gray30"),
-        axis.title = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "top"
       )
     
-    # Save the plot
+    # Save plot
     filename <- paste0("results/figures/032_kprototype_analysis/statistical_tests_k", k, ".pdf")
-    ggsave(filename, p, width = 12, height = 8, dpi = 300)
-    cat("Statistical analysis results plot saved to:", filename, "\n")
-    
-    return(list(results = stat_results, plot = p))
+    ggsave(filename, p, width = 14, height = 8, dpi = 300)
+    cat("Statistical analysis plot saved to:", filename, "\n")
+  } else {
+    cat("No statistical test results available to visualize\n")
   }
   
-  return(NULL)
+  return(stat_results)
 }
 
-# Run statistical analysis for each k value
-stat_analysis <- list()
+# Run statistical analysis for both k values
+stat_results <- list()
 for (k in kproto_k_values) {
-  cat("\nPerforming statistical analysis for k =", k, "\n")
-  stat_analysis[[paste0("k", k)]] <- perform_statistical_analysis(k)
+  cat("\nPerforming statistical analysis for k =", k, "...\n")
+  stat_results[[paste0("k", k)]] <- perform_statistical_analysis(k)
 }
 
-# 9. Create Summary Report -------------------------------------------------
-cat("\nGenerating analysis summary report...\n")
+# 9. PDM Experience Analysis by Cluster --------------------------------------
+cat("\nStarting PDM experience analysis by cluster...\n")
 
-# Create a summary of the clustering results
-summary_data <- data.frame(
-  K_Value = integer(),
-  Cluster = integer(),
-  Size = integer(),
-  PDM_Distribution = character(),
-  Key_Features = character(),
-  stringsAsFactors = FALSE
-)
+pdm_experience_vars <- c("PDM_Experience_DBB", "PDM_Experience_DB", 
+                         "PDM_Experience_PDB", "PDM_Experience_CMAR", 
+                         "PDM_Experience_IPD")
 
-# Function to generate cluster summaries
-generate_cluster_summary <- function(k) {
-  # Get the results for this k
+for (k in kproto_k_values) {
   cluster_results <- kproto_results[[paste0("k", k)]]$results
-  centroids <- kproto_results[[paste0("k", k)]]$centroids
   
-  # Summarize each cluster
-  for (cluster_num in 1:k) {
-    # Get cluster size
-    cluster_size <- sum(cluster_results$Cluster == cluster_num)
-    
-    # Get PDM distribution
-    pdm_dist <- table(cluster_results$PDM_Selected[cluster_results$Cluster == cluster_num])
-    pdm_pct <- round(prop.table(pdm_dist) * 100, 1)
-    top_pdms <- names(sort(pdm_dist, decreasing = TRUE))[1:min(2, length(pdm_dist))]
-    pdm_summary <- paste(
-      sapply(top_pdms, function(pdm) {
-        paste0(pdm, " (", pdm_pct[pdm], "%)")
-      }),
-      collapse = ", "
+  # Calculate experience means by cluster
+  experience_summary <- cluster_results %>%
+    group_by(Cluster) %>%
+    summarise(across(all_of(pdm_experience_vars), 
+                     list(mean = ~mean(., na.rm = TRUE),
+                          sd = ~sd(., na.rm = TRUE),
+                          median = ~median(., na.rm = TRUE)),
+                     .names = "{.col}_{.fn}"))
+  
+  # Save PDM experience summary
+  save_data(experience_summary, 
+            paste0("032_kprototype_analysis/pdm_experience_by_cluster_k", k, ".csv"))
+  
+  # Create visualization
+  exp_plot_data <- experience_summary %>%
+    select(Cluster, ends_with("_mean")) %>%
+    pivot_longer(cols = -Cluster, 
+                 names_to = "Experience_Type", 
+                 values_to = "Mean_Value") %>%
+    mutate(Experience_Type = gsub("PDM_Experience_(.+)_mean", "\\1", Experience_Type))
+  
+  # Define color mapping to match PDM distribution plot
+  pdm_exp_colors <- c(
+    "DBB" = "#D46A6A",   # Red
+    "CMAR" = "#E3C567",  # Yellow
+    "DB" = "#9CCF9C",    # Light green
+    "PDB" = "#4A8F4A",   # Dark green
+    "IPD" = "#6A95CA"    # Blue
+  )
+  
+  exp_plot <- ggplot(exp_plot_data, aes(x = Experience_Type, y = Mean_Value, fill = Experience_Type)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ Cluster, labeller = labeller(Cluster = function(x) paste0("Cluster ", x))) +
+    scale_fill_manual(values = pdm_exp_colors) +
+    labs(
+      title = paste0("Mean PDM Experience by Cluster (k=", k, ")"),
+      subtitle = "Higher values indicate more experience with a PDM type",
+      x = "Project Delivery Method",
+      y = "Mean Experience Score",
+      fill = "PDM Type"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      strip.background = element_rect(fill = "#E9ECEF"),
+      strip.text = element_text(face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1)
     )
-    
-    # Identify key features (variables with extreme values in centroids)
-    cluster_centroid <- centroids[centroids$Cluster == cluster_num, ]
-    
-    # Find variables where this cluster has the highest or lowest value
-    key_features <- c()
-    for (var in setdiff(colnames(centroids), "Cluster")) {
-      var_values <- centroids[, var]
-      max_val <- max(var_values)
-      min_val <- min(var_values)
-      
-      if (cluster_centroid[, var] == max_val && max_val > 3.5) {
-        key_features <- c(key_features, paste0("High ", var))
-      } else if (cluster_centroid[, var] == min_val && min_val < 2.5) {
-        key_features <- c(key_features, paste0("Low ", var))
-      }
-    }
-    
-    # Limit to top 5 features
-    if (length(key_features) > 5) {
-      key_features <- key_features[1:5]
-    }
-    
-    # Add to summary data
-    summary_data <- rbind(summary_data, data.frame(
-      K_Value = k,
-      Cluster = cluster_num,
-      Size = cluster_size,
-      PDM_Distribution = pdm_summary,
-      Key_Features = paste(key_features, collapse = ", "),
-      stringsAsFactors = FALSE
-    ))
-  }
   
-  return(summary_data)
+  # Save plot
+  filename <- paste0("results/figures/032_kprototype_analysis/pdm_experience_k", k, ".pdf")
+  ggsave(filename, exp_plot, width = 10, height = 8, dpi = 300)
+  cat("PDM experience plot saved to:", filename, "\n")
 }
 
-# Generate summaries for each k value
-for (k in kproto_k_values) {
-  summary_data <- generate_cluster_summary(k)
-}
-
-# Save summary data
-save_data(summary_data, "032_kprototype_analysis/cluster_summary.csv")
-cat("Cluster summary report saved successfully\n")
-
-# Print final message
-cat("\nK-prototype clustering analysis completed!\n")
-cat("Visualization results saved to: results/figures/032_kprototype_analysis/\n")
-cat("Data results saved to: results/tables/032_kprototype_analysis/\n") 
-cat("\nAdditional data generated for radar charts:\n")
-cat("  - Cluster medians data for k=", paste(kproto_k_values, collapse=", "), "\n") 
+# Print completion message
+cat("\nK-prototype clustering analysis complete!\n")
+cat("Results saved to: results/tables/032_kprototype_analysis/\n")
+cat("Visualizations saved to: results/figures/032_kprototype_analysis/\n") 

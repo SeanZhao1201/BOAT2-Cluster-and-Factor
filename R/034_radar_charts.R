@@ -9,59 +9,59 @@ if (!requireNamespace("fmsb", quietly = TRUE)) {
 library(fmsb)
 library(RColorBrewer) # For color palettes
 
-# 添加测试函数在主函数之前
+# Add test function before main function
 test_csv_reading <- function() {
-  cat("\n---------- 开始测试CSV文件读取 ----------\n")
+  cat("\n---------- Starting CSV file reading test ----------\n")
   
-  # 尝试读取中位数文件
+  # Try reading the medians file
   file_path <- "results/tables/032_kprototype_analysis/kproto_medians_k2.csv"
   
   if (file.exists(file_path)) {
-    cat("文件存在:", file_path, "\n")
+    cat("File exists:", file_path, "\n")
     
-    # 直接读取文件的前几行
+    # Directly read the first few lines of the file
     file_lines <- readLines(file_path, n = 5)
-    cat("文件内容预览:\n")
+    cat("File content preview:\n")
     for (line in file_lines) {
       cat("  ", line, "\n") 
     }
     
-    # 尝试不同的CSV读取参数
-    cat("\n尝试方法1 - 标准read.csv:\n")
+    # Try different CSV reading parameters
+    cat("\nMethod 1 - Standard read.csv:\n")
     df1 <- tryCatch({
       result <- read.csv(file_path, stringsAsFactors = FALSE)
       print(str(result))
       print(colnames(result))
       result
     }, error = function(e) {
-      cat("错误:", e$message, "\n")
+      cat("Error:", e$message, "\n")
       NULL
     })
     
-    cat("\n尝试方法2 - 带引号处理的read.csv:\n")
+    cat("\nMethod 2 - read.csv with quote handling:\n")
     df2 <- tryCatch({
       result <- read.csv(file_path, stringsAsFactors = FALSE, quote = "\"")
       print(str(result))
       print(colnames(result))
       result
     }, error = function(e) {
-      cat("错误:", e$message, "\n")
+      cat("Error:", e$message, "\n")
       NULL
     })
     
-    cat("\n尝试方法3 - 使用read.table:\n")
+    cat("\nMethod 3 - Using read.table:\n")
     df3 <- tryCatch({
       result <- read.table(file_path, header = TRUE, sep = ",", quote = "\"", stringsAsFactors = FALSE)
       print(str(result))
       print(colnames(result))
       result
     }, error = function(e) {
-      cat("错误:", e$message, "\n")
+      cat("Error:", e$message, "\n")
       NULL
     })
     
-    cat("\n尝试方法4 - 使用readr包:\n")
-    # 检查是否已加载readr
+    cat("\nMethod 4 - Using readr package:\n")
+    # Check if readr is loaded
     if(requireNamespace("readr", quietly = TRUE)) {
       df4 <- tryCatch({
         result <- readr::read_csv(file_path)
@@ -69,14 +69,14 @@ test_csv_reading <- function() {
         print(colnames(result))
         result
       }, error = function(e) {
-        cat("错误:", e$message, "\n")
+        cat("Error:", e$message, "\n")
         NULL
       })
     } else {
-      cat("readr包未加载，跳过方法4\n")
+      cat("readr package not loaded, skipping method 4\n")
     }
     
-    # 返回成功的数据框
+    # Return successful dataframe
     successful_df <- NULL
     if (!is.null(df1) && is.data.frame(df1)) successful_df <- df1
     else if (!is.null(df2) && is.data.frame(df2)) successful_df <- df2
@@ -84,15 +84,15 @@ test_csv_reading <- function() {
     else if (exists("df4") && !is.null(df4)) successful_df <- as.data.frame(df4)
     
     if (!is.null(successful_df)) {
-      cat("\n成功读取的数据框示例 (前2行):\n")
+      cat("\nSuccessfully read dataframe example (first 2 rows):\n")
       print(head(successful_df, 2))
       return(successful_df)
     } else {
-      cat("\n所有读取方法均失败\n")
+      cat("\nAll reading methods failed\n")
       return(NULL)
     }
   } else {
-    cat("文件不存在:", file_path, "\n")
+    cat("File does not exist:", file_path, "\n")
     return(NULL)
   }
 }
@@ -117,12 +117,12 @@ for (dir in dirs) {
 kproto_k_values <- c(2, 3)
 cat("Will generate radar charts for k values:", paste(kproto_k_values, collapse = ", "), "\n")
 
-# 执行CSV测试读取
+# Execute CSV test reading
 test_result <- test_csv_reading()
 if (!is.null(test_result)) {
-  cat("CSV测试读取成功，继续执行脚本\n")
+  cat("CSV test reading successful, continuing script execution\n")
 } else {
-  cat("CSV测试读取失败，脚本可能无法正常工作\n")
+  cat("CSV test reading failed, script may not work properly\n")
 }
 
 # 2. Load Clustering Results -------------------------------------------------
@@ -132,26 +132,26 @@ cat("\nLoading k-prototype clustering results...\n")
 load_centroids <- function(k) {
   file_path <- paste0("results/tables/032_kprototype_analysis/kproto_centroids_k", k, ".csv")
   if (file.exists(file_path)) {
-    # 添加更多的调试信息
+    # Add more debug information
     cat("  Reading centroids file:", file_path, "\n")
     
-    # 直接读取并打印文件的前几行以进行调试
+    # Directly read and print the first few lines of the file for debugging
     file_lines <- readLines(file_path, n = 5)
     cat("  File content preview:\n")
     for (line in file_lines) {
       cat("    ", line, "\n") 
     }
     
-    # 确保read.csv使用标准参数读取
+    # Ensure read.csv uses standard parameters
     centroids <- read.csv(file_path, stringsAsFactors = FALSE, check.names = FALSE)
     
-    # 打印读取后的数据结构
+    # Print the structure of the data after reading
     cat("  Loaded data structure:\n")
     print(str(centroids))
     cat("  Column names:\n")
     print(colnames(centroids))
     
-    # 确保Cluster列是数值型
+    # Ensure Cluster column is numeric
     centroids$Cluster <- as.numeric(centroids$Cluster)
     cat("  Loaded centroids for k =", k, "\n")
     return(centroids)
@@ -165,26 +165,26 @@ load_centroids <- function(k) {
 load_medians <- function(k) {
   file_path <- paste0("results/tables/032_kprototype_analysis/kproto_medians_k", k, ".csv")
   if (file.exists(file_path)) {
-    # 添加更多的调试信息
+    # Add more debug information
     cat("  Reading medians file:", file_path, "\n")
     
-    # 直接读取并打印文件的前几行以进行调试
+    # Directly read and print the first few lines of the file for debugging
     file_lines <- readLines(file_path, n = 5)
     cat("  File content preview:\n")
     for (line in file_lines) {
       cat("    ", line, "\n") 
     }
     
-    # 确保read.csv使用标准参数读取
+    # Ensure read.csv uses standard parameters
     medians <- read.csv(file_path, stringsAsFactors = FALSE, check.names = FALSE)
     
-    # 打印读取后的数据结构
+    # Print the structure of the data after reading
     cat("  Loaded data structure:\n")
     print(str(medians))
     cat("  Column names:\n")
     print(colnames(medians))
     
-    # 确保Cluster列是数值型
+    # Ensure Cluster column is numeric
     medians$Cluster <- as.numeric(medians$Cluster)
     cat("  Loaded medians for k =", k, "\n")
     return(medians)
@@ -207,24 +207,24 @@ load_cluster_data <- function(k) {
   }
 }
 
-# 新增：为Box Plot创建专用函数
+# New: Create specialized function for Box Plot
 create_box_plots <- function(k, cluster_data) {
   cat("\nCreating box plots for k =", k, "...\n")
   
-  # 确认cluster_data是否有效
+  # Confirm if cluster_data is valid
   if (is.null(cluster_data) || !is.data.frame(cluster_data)) {
     cat("  Error: Invalid or NULL cluster data\n")
     return(NULL)
   }
   
-  # 创建Box Plot专用文件夹
+  # Create Box Plot specific directory
   box_dir <- paste0("results/figures/034_radar_charts/k", k, "_box_plot")
   if (!dir.exists(box_dir)) {
     dir.create(box_dir, recursive = TRUE)
     cat("  Created box plot directory:", box_dir, "\n")
   }
   
-  # 只获取ORG_开头的组织结构变量
+  # Only get organization structure variables starting with ORG_
   org_vars <- grep("^ORG_", names(cluster_data), value = TRUE)
   cat("  Only generating box plots for organization structure variables:", paste(org_vars, collapse=", "), "\n")
   
@@ -233,33 +233,33 @@ create_box_plots <- function(k, cluster_data) {
     return(NULL)
   }
   
-  # 处理离散的组织规模变量
-  # 为了更好地可视化，将大型组织规模压缩到合理范围
-  if ("ORG_Size_Employees" %in% org_vars) {
-    # 创建组织规模的对数转换版本，便于box plot显示
-    cat("  Creating log-transformed version of ORG_Size_Employees for better visualization\n")
-    cluster_data$ORG_Size_Employees_Log <- log1p(cluster_data$ORG_Size_Employees)
-    # 将此变量添加到org_vars
-    org_vars <- c(org_vars, "ORG_Size_Employees_Log")
+  # Handle discrete organization size variables
+  # For better visualization, compress large organization sizes to a reasonable range
+  if ("ORG_Employees" %in% org_vars) {
+    # Create log-transformed version of organization size for better box plot display
+    cat("  Creating log-transformed version of ORG_Employees for better visualization\n")
+    cluster_data$ORG_Employees_Log <- log1p(cluster_data$ORG_Employees)
+    # Add this variable to org_vars
+    org_vars <- c(org_vars, "ORG_Employees_Log")
   }
   
-  # 对每个变量创建单独的box plot
+  # Create individual box plot for each variable
   for (var in org_vars) {
-    # 跳过与原始ORG_Size_Employees重复的对数变量
-    if (var == "ORG_Size_Employees" && "ORG_Size_Employees_Log" %in% org_vars) {
-      next  # 跳过，只使用对数变换版本
+    # Skip the original ORG_Employees if we have the log version
+    if (var == "ORG_Employees" && "ORG_Employees_Log" %in% org_vars) {
+      next  # Skip, only use the log-transformed version
     }
     
-    var_display <- gsub("_Log$", " (Log Scale)", var)  # 为对数变换变量显示更好的标签
-    var_display <- gsub("_", " ", var_display)  # 将下划线替换为空格，使标签更友好
+    var_display <- gsub("_Log$", " (Log Scale)", var)  # Better label for log-transformed variables
+    var_display <- gsub("_", " ", var_display)  # Replace underscores with spaces for friendlier labels
     
-    # 准备数据
+    # Prepare data
     plot_data <- cluster_data[, c("Cluster", var)]
     
-    # 处理离群值
+    # Handle outliers
     upper_limit <- NULL
-    if (var != "ORG_Size_Employees_Log" && var %in% c("ORG_Size_Employees", "ORG_Complexity_Locations", "ORG_Complexity_Departments")) {
-      # 对大型组织变量应用上限
+    if (var != "ORG_Employees_Log" && var %in% c("ORG_Employees", "ORG_Locations", "ORG_Departments")) {
+      # Apply cap to large organization variables
       q3 <- quantile(plot_data[[var]], 0.75, na.rm = TRUE)
       iqr <- IQR(plot_data[[var]], na.rm = TRUE)
       upper_limit <- q3 + 1.5 * iqr
@@ -268,7 +268,7 @@ create_box_plots <- function(k, cluster_data) {
       cat("    Original range:", min(plot_data[[var]], na.rm = TRUE), "to", max(plot_data[[var]], na.rm = TRUE), "\n")
       cat("    Upper limit for visualization:", upper_limit, "\n")
       
-      # 为可视化创建截断版本
+      # Create capped version for visualization
       plot_data$capped_value <- pmin(plot_data[[var]], upper_limit)
       var_to_plot <- "capped_value"
       var_display <- paste0(var_display, " (Capped)")
@@ -276,14 +276,14 @@ create_box_plots <- function(k, cluster_data) {
       var_to_plot <- var
     }
     
-    # 创建Box Plot
+    # Create Box Plot
     pdf_file <- paste0(box_dir, "/", gsub(" ", "_", tolower(var)), "_boxplot.pdf")
     pdf(pdf_file, width = 10, height = 8)
     
-    # 设置边距
+    # Set margins
     par(mar = c(5, 6, 4, 2) + 0.1)
     
-    # 绘制box plot
+    # Draw box plot
     boxplot(
       reformulate("Cluster", var_to_plot), 
       data = plot_data,
@@ -295,82 +295,82 @@ create_box_plots <- function(k, cluster_data) {
       cex.lab = 1.3,
       cex.main = 1.4,
       outline = TRUE,
-      axes = (var != "ORG_Size_Employees_Log") # 对数变量暂时不显示默认轴
+      axes = (var != "ORG_Employees_Log") # Don't show default axes for log variable
     )
     
-    # 对对数轴添加更有意义的标签
-    if (var == "ORG_Size_Employees_Log") {
-      # 获取当前的轴范围
+    # Add more meaningful labels for log axis
+    if (var == "ORG_Employees_Log") {
+      # Get current axis range
       log_range <- range(plot_data[[var]], na.rm = TRUE)
-      # 创建适当的刻度
+      # Create appropriate ticks
       log_breaks <- seq(from = floor(log_range[1]), to = ceiling(log_range[2]), by = 1)
-      # 原始值（指数变换回去）
+      # Original values (exponentiate back)
       orig_values <- round(expm1(log_breaks))
-      # 自定义标签
+      # Custom labels
       axis(2, at = log_breaks, labels = paste0(round(log_breaks, 1), "\n(", orig_values, ")"), las = 1, cex.axis = 1.1)
-      # 添加网格线
+      # Add grid lines
       abline(h = log_breaks, col = "lightgray", lty = 3)
     }
     
-    # 如果有上限值，添加上限标注
+    # If there's an upper limit, add limit annotation
     if (!is.null(upper_limit)) {
       mtext(paste("Values capped at", round(upper_limit, 1)), side = 3, line = 0.5, cex = 0.9, col = "red")
     }
     
-    # 添加中位数值标签
+    # Add median value labels
     med_vals <- tapply(plot_data[[var]], plot_data$Cluster, median, na.rm = TRUE)
-    if (var == "ORG_Size_Employees_Log") {
-      # 对对数值，同时显示转换前后的值
+    if (var == "ORG_Employees_Log") {
+      # For log values, show both transformed and original values
       med_pos <- med_vals + 0.15 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE))
       text_labels <- sprintf("%.2f\n(%.0f)", med_vals, expm1(med_vals))
       text(1:k, med_pos, text_labels, cex = 1.1)
     } else {
-      # 对普通值，只显示原值
+      # For normal values, just show original
       text(1:k, med_vals + 0.15 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE)), 
            sprintf("%.2f", med_vals), cex = 1.1)
     }
     
-    # 关闭设备
+    # Close device
     dev.off()
     cat("    Box plot saved to:", pdf_file, "\n")
   }
   
-  # 创建组合box plot
+  # Create combined box plot
   combined_pdf <- paste0(box_dir, "/organization_structure_combined_boxplot.pdf")
   
-  # 计算需要的行数
+  # Calculate needed rows
   n_vars <- length(org_vars)
-  if ("ORG_Size_Employees" %in% org_vars && "ORG_Size_Employees_Log" %in% org_vars) {
-    n_vars <- n_vars - 1  # 减去一个，因为我们不会使用原始的ORG_Size_Employees
+  if ("ORG_Employees" %in% org_vars && "ORG_Employees_Log" %in% org_vars) {
+    n_vars <- n_vars - 1  # Subtract one as we won't use the original ORG_Employees
   }
   
-  n_rows <- ceiling(n_vars / 2)  # 每行2个图
+  n_rows <- ceiling(n_vars / 2)  # 2 plots per row
   
-  # 创建组合图
+  # Create combined plot
   pdf(combined_pdf, width = 16, height = 6 * n_rows)
   par(mfrow = c(n_rows, 2), mar = c(5, 5, 4, 2) + 0.1)
   
   for (var in org_vars) {
-    # 跳过与原始ORG_Size_Employees重复的对数变量
-    if (var == "ORG_Size_Employees" && "ORG_Size_Employees_Log" %in% org_vars) {
-      next  # 跳过，只使用对数变换版本
+    # Skip the original ORG_Employees if we have the log version
+    if (var == "ORG_Employees" && "ORG_Employees_Log" %in% org_vars) {
+      next  # Skip, only use the log-transformed version
     }
     
     var_display <- gsub("_Log$", " (Log Scale)", var)
-    var_display <- gsub("_", " ", var_display)  # 将下划线替换为空格，使标签更友好
+    var_display <- gsub("_", " ", var_display)  # Replace underscores with spaces for friendlier labels
     
-    # 准备数据
+    # Prepare data
     plot_data <- cluster_data[, c("Cluster", var)]
     
-    # 处理离群值
+    # Handle outliers
     upper_limit <- NULL
-    if (var != "ORG_Size_Employees_Log" && var %in% c("ORG_Size_Employees", "ORG_Complexity_Locations", "ORG_Complexity_Departments")) {
-      # 对大型组织变量应用上限
+    if (var != "ORG_Employees_Log" && var %in% c("ORG_Employees", "ORG_Locations", "ORG_Departments")) {
+      # Apply cap to large organization variables
       q3 <- quantile(plot_data[[var]], 0.75, na.rm = TRUE)
       iqr <- IQR(plot_data[[var]], na.rm = TRUE)
       upper_limit <- q3 + 1.5 * iqr
       
-      # 为可视化创建截断版本
+      # Create capped version for visualization
       plot_data$capped_value <- pmin(plot_data[[var]], upper_limit)
       var_to_plot <- "capped_value"
       var_display <- paste0(var_display, " (Capped)")
@@ -378,7 +378,7 @@ create_box_plots <- function(k, cluster_data) {
       var_to_plot <- var
     }
     
-    # 绘制box plot
+    # Draw box plot
     boxplot(
       reformulate("Cluster", var_to_plot), 
       data = plot_data,
@@ -390,37 +390,37 @@ create_box_plots <- function(k, cluster_data) {
       cex.lab = 1.3,
       cex.main = 1.4,
       outline = TRUE,
-      axes = (var != "ORG_Size_Employees_Log") # 对数变量暂时不显示默认轴
+      axes = (var != "ORG_Employees_Log") # Don't show default axes for log variable
     )
     
-    # 对对数轴添加更有意义的标签
-    if (var == "ORG_Size_Employees_Log") {
-      # 获取当前的轴范围
+    # Add more meaningful labels for log axis
+    if (var == "ORG_Employees_Log") {
+      # Get current axis range
       log_range <- range(plot_data[[var]], na.rm = TRUE)
-      # 创建适当的刻度
+      # Create appropriate ticks
       log_breaks <- seq(from = floor(log_range[1]), to = ceiling(log_range[2]), by = 1)
-      # 原始值（指数变换回去）
+      # Original values (exponentiate back)
       orig_values <- round(expm1(log_breaks))
-      # 自定义标签
+      # Custom labels
       axis(2, at = log_breaks, labels = paste0(round(log_breaks, 1), "\n(", orig_values, ")"), las = 1, cex.axis = 1.1)
-      # 添加网格线
+      # Add grid lines
       abline(h = log_breaks, col = "lightgray", lty = 3)
     }
     
-    # 如果有上限值，添加上限标注
+    # If there's an upper limit, add limit annotation
     if (!is.null(upper_limit)) {
       mtext(paste("Values capped at", round(upper_limit, 1)), side = 3, line = 0.5, cex = 0.9, col = "red")
     }
     
-    # 添加中位数值标签
+    # Add median value labels
     med_vals <- tapply(plot_data[[var]], plot_data$Cluster, median, na.rm = TRUE)
-    if (var == "ORG_Size_Employees_Log") {
-      # 对对数值，同时显示转换前后的值
+    if (var == "ORG_Employees_Log") {
+      # For log values, show both transformed and original values
       med_pos <- med_vals + 0.1 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE))
       text_labels <- sprintf("%.1f\n(%.0f)", med_vals, expm1(med_vals))
       text(1:k, med_pos, text_labels, cex = 1.1)
     } else {
-      # 对普通值，只显示原值
+      # For normal values, just show original
       text(1:k, med_vals + 0.1 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE)), 
            sprintf("%.2f", med_vals), cex = 1.1)
     }
@@ -434,12 +434,12 @@ create_box_plots <- function(k, cluster_data) {
 
 # Load data for each k value
 centroids_list <- list()
-medians_list <- list()  # 新增中位数列表
+medians_list <- list()  # New medians list
 cluster_data_list <- list()
 
 for (k in kproto_k_values) {
   centroids_list[[paste0("k", k)]] <- load_centroids(k)
-  medians_list[[paste0("k", k)]] <- load_medians(k)  # 加载中位数数据
+  medians_list[[paste0("k", k)]] <- load_medians(k)  # Load medians data
   cluster_data_list[[paste0("k", k)]] <- load_cluster_data(k)
 }
 
@@ -448,48 +448,48 @@ cat("\nOrganizing variables for radar charts...\n")
 
 # Define numeric organizational structure variables (separate visualization)
 org_structure_vars <- c(
-  "ORG_Size_Employees",
-  "ORG_Complexity_Locations",
-  "ORG_Complexity_Departments",
+  "ORG_Employees",
+  "ORG_Locations",
+  "ORG_Departments",
   "ORG_Hierarchy_Layers"
 )
 
 # Define Group 1: Decision and Style variables (Likert scale)
 group1_vars <- c(
   # Decision distribution variables
-  "DEC_Authority_Dispersion",
-  "DEC_Authority_Delegation",
-  "DEC_Process_InformalCommunication",
-  "DEC_Process_InformalProcedures",
+  "DIST_Athority_Dispersion",
+  "DIST_Athority_Delegation",
+  "DIST_Process_InformalCommunication",
+  "DIST_Process_InformalProcedure",
   
   # Decision style variables
-  "STY_Analytical_DataDriven",
-  "STY_Participative_Inclusion",
-  "STY_Participative_Relational",
-  "STY_Organic_InformalStructure",
-  "STY_Organic_Adaptability", 
-  "STY_Directive_Threats",
-  "STY_Directive_Compliance"
+  "STY_DataDriven",
+  "STY_Participation_Inclusion",
+  "STY_Participation_Relational",
+  "STY_Adaptive_Informal",
+  "STY_Adaptive_Changeable", 
+  "STY_Authoritative_Threats",
+  "STY_Authoritative_Compliance"
 )
 
 # Define Group 2: Culture, Flexibility, Risk and Environment variables (Likert scale)
 group2_vars <- c(
   # Organization culture variables
-  "CUL_Authority_Hierarchical",
-  "CUL_Integration_Vision",
-  "CUL_Integration_Systematic",
-  "CUL_Innovation_Experimental",
-  "CUL_Collaboration_Stakeholder",
+  "CUL_Command",
+  "CUL_Symbolic",
+  "CUL_Formal",
+  "CUL_Experimental",
+  "CUL_Learning",
   
   # Decision flexibility variables
-  "FLEX_Cognitive_Receptivity",
-  "FLEX_Behavioral_Adaptability",
+  "FLEX_OpenToNewIdeas",
+  "FLEX_OpenToChanges",
   
   # Risk and environment variables
-  "RISK_Appetite_Investment",
-  "ENV_Context_Growth",
-  "ENV_Context_Volatility",
-  "ENV_Context_Stability"
+  "RISK_Tolerance",
+  "ENV_SustainedGrowth",
+  "ENV_HighriskIndustry",
+  "ENV_IndustryStability"
 )
 
 # Create a list of variable groups (new organization)
@@ -539,9 +539,9 @@ format_variable_names <- function(var_names) {
     "ENV_Context_Volatility" = "ENV\nContext\nVolatility",
     "ENV_Context_Stability" = "ENV\nContext\nStability",
     
-    "ORG_Size_Employees" = "ORG\nSize\nEmployees",
-    "ORG_Complexity_Locations" = "ORG\nComplexity\nLocations",
-    "ORG_Complexity_Departments" = "ORG\nComplexity\nDepartments",
+    "ORG_Employees" = "ORG\nEmployees",
+    "ORG_Locations" = "ORG\nLocations",
+    "ORG_Departments" = "ORG\nDepartments",
     "ORG_Hierarchy_Layers" = "ORG\nHierarchy\nLayers"
   )
   
@@ -662,7 +662,7 @@ cat("\nGenerating charts...\n")
 generate_charts <- function(k, centroids, medians, cluster_data, use_medians = FALSE) {
   cat("\nCreating charts for k =", k, "...\n")
   
-  # 确定使用哪个数据源及相应的目录后缀
+  # Determine which data source to use based on the parameter
   data_type <- ifelse(use_medians, "medians", "centroids")
   # Directly assign the data source based on the parameter
   data_source <- if (use_medians) medians else centroids
@@ -674,7 +674,7 @@ generate_charts <- function(k, centroids, medians, cluster_data, use_medians = F
     return(NULL)
   }
   
-  # 打印数据源的列名以进行调试
+  # Print column names of data_source for debugging
   cat("  Data source column names:\n")
   print(colnames(data_source))
   cat("  Data source structure:\n")
@@ -772,7 +772,7 @@ generate_charts <- function(k, centroids, medians, cluster_data, use_medians = F
   for (cluster_num in 1:k) {
     cat("  Processing cluster", cluster_num, "...\n")
     
-    # Filter data for this cluster - 使用更安全的子集方式
+    # Filter data for this cluster - using safer subsetting method
     if ("Cluster" %in% names(data_source)) {
       cluster_data_filtered <- subset(data_source, Cluster == cluster_num)
       cat("    Found", nrow(cluster_data_filtered), "rows for cluster", cluster_num, "\n")
@@ -782,7 +782,7 @@ generate_charts <- function(k, centroids, medians, cluster_data, use_medians = F
       next
     }
     
-    # 如果有匹配的Likert变量，则创建雷达图
+    # If there are matching Likert variables, create radar chart
     likert_vars_available <- likert_vars[likert_vars %in% colnames(data_source)]
     if (length(likert_vars_available) > 0) {
       # Create radar chart for this cluster (Likert variables only)
@@ -848,7 +848,7 @@ generate_charts <- function(k, centroids, medians, cluster_data, use_medians = F
 
 # Generate charts for each k value
 chart_results <- list()
-chart_results_median <- list()  # 存储中位数雷达图结果
+chart_results_median <- list()  # Store medians radar chart results
 
 for (k in kproto_k_values) {
   centroids_data <- centroids_list[[paste0("k", k)]]
@@ -856,8 +856,8 @@ for (k in kproto_k_values) {
   cluster_data <- cluster_data_list[[paste0("k", k)]]
   
   if (!is.null(centroids_data) && !is.null(cluster_data)) {
-    # 生成雷达图
-    cat("\n生成基于均值(质心)的雷达图 k =", k, "...\n")
+    # Generate radar chart based on means (centroids)
+    cat("\nGenerating radar chart based on means (centroids) for k =", k, "...\n")
     chart_results[[paste0("k", k)]] <- generate_charts(
       k = k,
       centroids = centroids_data,
@@ -866,9 +866,9 @@ for (k in kproto_k_values) {
       use_medians = FALSE
     )
     
-    # 生成中位数雷达图
+    # Generate radar chart based on medians
     if (!is.null(medians_data)) {
-      cat("\n生成基于中位数的雷达图 k =", k, "...\n")
+      cat("\nGenerating radar chart based on medians for k =", k, "...\n")
       chart_results_median[[paste0("k", k)]] <- generate_charts(
         k = k,
         centroids = centroids_data,
@@ -878,33 +878,33 @@ for (k in kproto_k_values) {
       )
     }
     
-    # 生成box plot
-    cat("\n生成Box Plot可视化 k =", k, "...\n")
+    # Generate box plot
+    cat("\nGenerating Box Plot visualization for k =", k, "...\n")
     create_box_plots(
       k = k,
       cluster_data = cluster_data
     )
   } else {
-    cat("\n跳过 k =", k, "因为数据缺失\n")
+    cat("\nSkipping k =", k, "because data is missing\n")
   }
 }
 
 # 6. Create Comparative Visualizations ---------------------------------------
 cat("\nCreating comparative visualizations...\n")
 
-# 生成三个比较可视化：一个基于所有Likert变量，一个基于Group 1变量，一个基于Group 2变量
-# 每组比较可视化有两个版本：一个基于均值，一个基于中位数
+# Generate three comparative visualizations: one based on all Likert variables, one based on Group 1 variables, one based on Group 2 variables
+# Each comparative visualization has two versions: one based on means, one based on medians
 for (data_type in c("means", "medians")) {
   use_medians <- data_type == "medians"
   results_list <- if(use_medians) chart_results_median else chart_results
   
-  # 跳过没有数据的类型
+  # Skip if there's no data for this type
   if (length(results_list) == 0) {
-    cat("  没有", data_type, "类型的数据可用于比较可视化\n")
+    cat("   No", data_type, "type data available for comparative visualization\n")
     next
   }
   
-  # 为所有Likert变量创建比较可视化
+  # Create comparative visualization for all Likert variables
   create_comparative_visualization <- function(chart_type, title_suffix, width = 18, height = 14) {
     pdf_file <- paste0("results/figures/034_radar_charts/comparative_", chart_type, "_radar_", data_type, ".pdf")
     
@@ -952,28 +952,107 @@ for (data_type in c("means", "medians")) {
     cat("  Comparative", chart_type, "radar chart (", data_type, ") saved to:", pdf_file, "\n")
   }
   
-  # 创建三种比较可视化
+  # Create three comparative visualizations
   create_comparative_visualization("likert_radar", " - All Variables")
   create_comparative_visualization("group1_radar", " - Decision & Style")
   create_comparative_visualization("group2_radar", " - Culture, Flex & Env")
 }
 
+# 7. Export data tables for further analysis -----------------------------------
+cat("\nExporting data tables for further analysis...\n")
+
+# Make sure the tables directory exists
+tables_dir <- "results/tables/034_radar_charts"
+if (!dir.exists(tables_dir)) {
+  dir.create(tables_dir, recursive = TRUE)
+  cat("Created directory:", tables_dir, "\n")
+}
+
+# Function to export data tables for a specific k value
+export_data_tables <- function(k) {
+  cat("Exporting data tables for k =", k, "...\n")
+  
+  # Export means (centroids) data
+  centroids_data <- centroids_list[[paste0("k", k)]]
+  if (!is.null(centroids_data)) {
+    centroids_file <- paste0(tables_dir, "/k", k, "_means.csv")
+    write.csv(centroids_data, centroids_file, row.names = FALSE)
+    cat("  Means (centroids) data for k =", k, "saved to:", centroids_file, "\n")
+    
+    # Also export means data for individual variable groups
+    # Group 1 variables
+    group1_vars_filtered <- group1_vars[group1_vars %in% colnames(centroids_data)]
+    if (length(group1_vars_filtered) > 0) {
+      group1_data <- centroids_data[, c("Cluster", group1_vars_filtered)]
+      group1_file <- paste0(tables_dir, "/k", k, "_means_group1.csv")
+      write.csv(group1_data, group1_file, row.names = FALSE)
+      cat("  Group 1 means data for k =", k, "saved to:", group1_file, "\n")
+    }
+    
+    # Group 2 variables
+    group2_vars_filtered <- group2_vars[group2_vars %in% colnames(centroids_data)]
+    if (length(group2_vars_filtered) > 0) {
+      group2_data <- centroids_data[, c("Cluster", group2_vars_filtered)]
+      group2_file <- paste0(tables_dir, "/k", k, "_means_group2.csv")
+      write.csv(group2_data, group2_file, row.names = FALSE)
+      cat("  Group 2 means data for k =", k, "saved to:", group2_file, "\n")
+    }
+  } else {
+    cat("  No means (centroids) data available for k =", k, "\n")
+  }
+  
+  # Export medians data
+  medians_data <- medians_list[[paste0("k", k)]]
+  if (!is.null(medians_data)) {
+    medians_file <- paste0(tables_dir, "/k", k, "_medians.csv")
+    write.csv(medians_data, medians_file, row.names = FALSE)
+    cat("  Medians data for k =", k, "saved to:", medians_file, "\n")
+    
+    # Also export medians data for individual variable groups
+    # Group 1 variables
+    group1_vars_filtered <- group1_vars[group1_vars %in% colnames(medians_data)]
+    if (length(group1_vars_filtered) > 0) {
+      group1_data <- medians_data[, c("Cluster", group1_vars_filtered)]
+      group1_file <- paste0(tables_dir, "/k", k, "_medians_group1.csv")
+      write.csv(group1_data, group1_file, row.names = FALSE)
+      cat("  Group 1 medians data for k =", k, "saved to:", group1_file, "\n")
+    }
+    
+    # Group 2 variables
+    group2_vars_filtered <- group2_vars[group2_vars %in% colnames(medians_data)]
+    if (length(group2_vars_filtered) > 0) {
+      group2_data <- medians_data[, c("Cluster", group2_vars_filtered)]
+      group2_file <- paste0(tables_dir, "/k", k, "_medians_group2.csv")
+      write.csv(group2_data, group2_file, row.names = FALSE)
+      cat("  Group 2 medians data for k =", k, "saved to:", group2_file, "\n")
+    }
+  } else {
+    cat("  No medians data available for k =", k, "\n")
+  }
+}
+
+# Export data tables for each k value
+for (k in kproto_k_values) {
+  export_data_tables(k)
+}
+
 # Print final message
 cat("\nChart visualization completed!\n")
 cat("Visualization results saved to: results/figures/034_radar_charts/\n")
+cat("Data tables saved to: results/tables/034_radar_charts/\n")
 
 # Print radar chart customization options
-cat("\n雷达图可调整的参数包括：\n")
-cat("1. 宽高比：通过调整 width 和 height 参数\n")
-cat("2. 变量名格式：修改 format_variable_names 函数中的名称映射\n")
-cat("3. 颜色方案：修改 cluster_colors 变量\n")
-cat("4. 透明度：调整 adjustcolor 函数中的 alpha.f 参数\n")
-cat("5. 线条粗细：调整 plwd 参数\n")
-cat("6. 文字大小：调整 vlcex（变量标签）和 calcex（坐标轴标签）参数\n")
-cat("7. 图表标题：通过 title 参数设置\n")
-cat("8. 网格线样式：通过 cglcol 和 cglty 参数\n")
-cat("9. 坐标刻度：通过 caxislabels 参数\n")
-cat("10. 图例位置和样式：通过 legend 函数的参数\n")
-cat("\n可以使用的数据类型：\n")
-cat("- 均值 (质心)：results/figures/034_radar_charts/k2, k3/\n")
-cat("- 中位数：results/figures/034_radar_charts/k2_median, k3_median/\n") 
+cat("\nRadar chart customization options include:\n")
+cat("1. Aspect ratio: Adjust width and height parameters\n")
+cat("2. Variable name format: Modify name mappings in format_variable_names function\n")
+cat("3. Color scheme: Modify cluster_colors variable\n")
+cat("4. Transparency: Adjust alpha.f parameter in adjustcolor function\n")
+cat("5. Line thickness: Adjust plwd parameter\n")
+cat("6. Text size: Adjust vlcex (variable label) and calcex (axis label) parameters\n")
+cat("7. Chart title: Set through title parameter\n")
+cat("8. Grid line style: Set through cglcol and cglty parameters\n")
+cat("9. Axis scale: Set through caxislabels parameter\n")
+cat("10. Legend position and style: Set through legend function parameters\n")
+cat("\nData types available:\n")
+cat("- Means (centroids): results/figures/034_radar_charts/k2, k3/\n")
+cat("- Medians: results/figures/034_radar_charts/k2_median, k3_median/\n") 

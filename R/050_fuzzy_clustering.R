@@ -14,23 +14,28 @@ dimensionality_data <- read.csv("results/tables/dimensionality_reduction_results
 
 # Define decision variables
 decision_vars <- c(
-  "Distribution_Centralization", 
-  "Distribution_Formalization",
-  "Style_Technocracy", 
-  "Style_Participation", 
-  "Style_Organicity", 
-  "Style_Coercion",
-  "Culture_Command", 
-  "Culture_Symbolic", 
-  "Culture_Rationale", 
-  "Culture_Generative", 
-  "Culture_Transactive",
-  "Flexibility_openness", 
-  "Flexibility_Recursiveness",
-  "Risk",
-  "Environment_Growth", 
-  "Environment_Hostile", 
-  "Environment_Stable"
+  "DIST_Athority_Dispersion", 
+  "DIST_Athority_Delegation",
+  "DIST_Process_InformalCommunication", 
+  "DIST_Process_InformalProcedure",
+  "STY_DataDriven", 
+  "STY_Participation_Inclusion", 
+  "STY_Participation_Relational", 
+  "STY_Adaptive_Informal", 
+  "STY_Adaptive_Changeable", 
+  "STY_Authoritative_Threats", 
+  "STY_Authoritative_Compliance",
+  "CUL_Command", 
+  "CUL_Symbolic", 
+  "CUL_Formal", 
+  "CUL_Experimental", 
+  "CUL_Learning",
+  "FLEX_OpenToNewIdeas", 
+  "FLEX_OpenToChanges",
+  "RISK_Tolerance",
+  "ENV_SustainedGrowth", 
+  "ENV_HighriskIndustry", 
+  "ENV_IndustryStability"
 )
 
 # 2. Determine Optimal Number of Clusters ------------------------------------
