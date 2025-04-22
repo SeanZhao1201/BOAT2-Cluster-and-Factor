@@ -1,4 +1,6 @@
 .Rhistory
 .RData
 .Rproj.user/
-*.pdf 
+*.pdf
+# 忽略Results目录下的所有文件
+Results/ 

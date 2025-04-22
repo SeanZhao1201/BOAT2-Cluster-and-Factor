@@ -1,34 +1,82 @@
-# Building Owners' Decision-Making Profile Analysis
+# BOAT2 Cluster and Factor Analysis
 
-This repository contains the analysis of building owners' decision-making profiles using various clustering techniques and dimension reduction methods. The analysis aims to identify distinct groups of building owners based on their organizational characteristics and decision-making patterns.
+## Project Overview
 
-## Analysis Overview
+This project analyzes building owners' decision-making characteristics, identifies owner decision-making patterns through cluster analysis, and explores the relationship between these patterns and project delivery methods (PDM). The study employs multiple clustering methods and dimensionality reduction techniques for visualization to identify groups of owners with similar decision-making characteristics.
 
-The analysis consists of four main sections:
+## Research Questions
 
-1. **Data Preparation and Initial Clustering Analysis**
-   - Hierarchical clustering using Ward's method
-   - Dendrogram visualization with PDM type coloring
-   - Cluster assignment analysis
-   - Contingency table analysis of PDM types by cluster
+1. Are there distinct grouping patterns in building owners' decision-making characteristics?
+2. How do different clustering methods perform in distinguishing owner decision-making characteristics?
+3. Is there an association between owner decision-making characteristics and project delivery methods?
+4. Which decision-making characteristics are most important in distinguishing different owner groups?
 
-2. **K-Prototypes Clustering Analysis**
-   - Mixed data type handling (numerical and ordinal variables)
-   - Optimal cluster number determination using silhouette analysis
-   - PAM clustering implementation
-   - Cluster visualization through boxplots and heatmaps
+## Project Structure
 
-3. **Detailed Cluster Analysis and Visualization**
-   - K-prototypes clustering with k=2 and k=3
-   - Numerical variable distribution analysis
-   - Cluster characteristics heatmap
-   - Silhouette plot analysis
+This project uses a modular approach with separate R scripts for different analyses:
 
-4. **Dimension Reduction Analysis**
-   - Principal Component Analysis (PCA)
-   - UMAP visualization
-   - Scree plot analysis
-   - Variable loadings analysis
+```
+BOAT2-Cluster-and-Factor/
+├── data/                      # Data files
+│   └── BOAT2_Data.csv         # Main dataset
+├── R/                         # R scripts
+│   ├── 00_setup.R             # Library loading and common utilities
+│   ├── 01_data_preparation.R  # Data preprocessing and cleaning
+│   ├── 02_exploration.R       # Exploratory data analysis
+│   ├── 03_dimensionality.R    # PCA and UMAP dimensionality reduction
+│   ├── 04_clustering.R        # Main clustering analysis
+│   ├── 05_fuzzy_clustering.R  # Fuzzy clustering analysis
+│   ├── kprototype_analysis.R  # K-prototype clustering for mixed data types
+│   ├── run_all.R              # Main script to run the complete analysis
+│   └── modules/               # Modular components
+│       ├── clustering/        # Specialized clustering functions
+│       ├── fuzzy_clustering.R # Fuzzy clustering implementation
+│       ├── fuzzy_visualization.R # Fuzzy clustering visualization
+│       ├── validation.R       # Cluster validation methods
+│       └── visualization.R    # Visualization functions
+├── Results/                   # Analysis outputs
+│   ├── tables/                # CSV output files
+│   └── figures/               # Generated visualizations
+├── BOAT2-Cluster-and-Factor.Rmd  # R Markdown document for analysis
+└── README.md                  # Project description
+```
+
+## Analysis Methods
+
+This study employs multiple clustering methods:
+- Hierarchical Clustering
+- Partitioning Around Medoids (PAM)
+- K-Prototypes Clustering (for handling mixed data types)
+- Fuzzy C-means Clustering (for soft clustering)
+
+The optimal number of clusters is determined through:
+- Silhouette Analysis
+- Elbow Method
+- Gap Statistic
+- Cluster Stability Analysis
+
+## How to Use
+
+1. Clone this repository
+2. Ensure R and all required packages are installed (run `R/00_setup.R` to check and install needed packages)
+3. Run the scripts in numerical order, or use the provided `run_all.R` script to run the complete analysis
+4. Alternatively, you can use the R Markdown file `BOAT2-Cluster-and-Factor.Rmd` for an interactive analysis
+
+## Main Outputs
+
+- Cluster membership assignments for building owners
+- Visualizations of cluster characteristics
+- Analysis of relationship between clusters and PDM choices
+- Dimensionality reduction plots for data exploration
+
+## Required Packages
+
+- tidyverse, dplyr, readr (data processing)
+- ggplot2, gridExtra, viridis, RColorBrewer (visualization)
+- cluster, clustMixType, NbClust (clustering)
+- e1071 (fuzzy clustering)
+- factoextra, umap (dimensionality reduction)
+- fmsb (radar charts)
 
 ## Data Variables
 
@@ -65,19 +113,18 @@ The analysis consists of four main sections:
 
 ## Output Files
 
-The analysis generates several output files:
+The analysis generates several output files in the Results directory:
 
-1. **Visualization Files**
-   - `BOAT2_Dendrogram_PDM.pdf`: Hierarchical clustering dendrogram colored by PDM type
-   - `BOAT2_Dendrogram_Clusters.pdf`: Hierarchical clustering dendrogram with cluster coloring
-   - `BOAT2_Clustering_Visualizations.pdf`: Boxplots and heatmaps of cluster characteristics
-   - `Cluster_Analysis_Visualizations.pdf`: Detailed cluster analysis visualizations
-   - `Dimension_Reduction_Analysis.pdf`: PCA and UMAP visualizations
+1. **Visualization Files** (in Results/figures/)
+   - Dendrograms of hierarchical clustering
+   - Boxplots and heatmaps of cluster characteristics
+   - Dimensionality reduction visualizations (PCA, UMAP)
+   - Radar charts of cluster profiles
 
-2. **Data Files**
-   - `BOAT2_Cluster_Assignments.csv`: Cluster assignments for each observation
-   - `BOAT2_PDM_Cluster_Table.csv`: Contingency table of PDM types by cluster
-   - `BOAT2_Clustering_Results.csv`: Detailed clustering results with original values
+2. **Data Files** (in Results/tables/)
+   - Cluster assignments for each observation
+   - Contingency tables of PDM types by cluster
+   - Detailed clustering results with original values
 
 ## Dependencies
 
@@ -90,11 +137,14 @@ The analysis requires the following R packages:
 
 ## Usage
 
-To run the analysis:
+To run the complete analysis:
 1. Ensure all required R packages are installed
-2. Place the input data file (`BOAT2_Data.csv`) in the working directory
-3. Run the R Markdown file (`0320.Rmd`)
-4. Check the generated output files for results and visualizations
+2. Run the `R/run_all.R` script which will execute all analysis steps in sequence
+3. Check the generated output files in the Results directory
+
+Alternatively, for an interactive analysis:
+1. Open the R Markdown file `BOAT2-Cluster-and-Factor.Rmd`
+2. Execute the chunks in sequence
 
 ## Notes
 
