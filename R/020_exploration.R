@@ -2,7 +2,7 @@
 # This script performs exploratory analysis and visualization on the prepared data
 
 # 1. Load Setup and Data -----------------------------------------------------
-source("R/00_setup.R")
+source("R/000_setup.R")
 
 # Create dedicated subdirectories for this script's outputs
 exploration_figures_dir <- "results/figures/02_exploration"
@@ -41,36 +41,45 @@ boat2_data <- read.csv("data/BOAT2_Data_Enhanced.csv")
 # Define variable groups (from data preparation script)
 # Organizational structure variables
 numerical_org_vars <- c(
-  "Org_Structure_Employees",
-  "Org_Structure_Locations",
-  "Org_Structure_Depts",
-  "Org_Structure_Layers"
+  "ORG_Size_Employees",
+  "ORG_Complexity_Locations",
+  "ORG_Complexity_Departments",
+  "ORG_Hierarchy_Layers"
 )
 
-# Decision-making variables (updated to match actual column names)
+# Decision-making variables (updated to match new descriptive column names)
 merged_ordinal_vars <- c(
-  "Distribution_Centralization1", 
-  "Distribution_Centralization2",
-  "Distribution_Formalization1", 
-  "Distribution_Formalization2",
-  "Style_Technocracy",
-  "Style_Participation1", 
-  "Style_Participation2",
-  "Style_Organicity1", 
-  "Style_Organicity2",
-  "Style_Coercion1", 
-  "Style_Coercion2",
-  "Culture_Command",
-  "Culture_Symbolic",
-  "Culture_Rationale",
-  "Culture_Generative",
-  "Culture_Transactive",
-  "Flexibility_openness",
-  "Flexibility_Recursiveness",
-  "Risk",
-  "Environment_Growth",
-  "Environment_Hostile",
-  "Environment_Stable"
+  # 决策分布变量
+  "DEC_Authority_Dispersion", 
+  "DEC_Authority_Delegation",
+  "DEC_Process_InformalCommunication", 
+  "DEC_Process_InformalProcedures",
+  
+  # 决策风格变量
+  "STY_Analytical_DataDriven",
+  "STY_Participative_Inclusion", 
+  "STY_Participative_Relational",
+  "STY_Organic_InformalStructure", 
+  "STY_Organic_Adaptability",
+  "STY_Directive_Threats", 
+  "STY_Directive_Compliance",
+  
+  # 组织文化变量
+  "CUL_Authority_Hierarchical",
+  "CUL_Integration_Vision",
+  "CUL_Integration_Systematic",
+  "CUL_Innovation_Experimental",
+  "CUL_Collaboration_Stakeholder",
+  
+  # 决策灵活性变量
+  "FLEX_Cognitive_Receptivity",
+  "FLEX_Behavioral_Adaptability",
+  
+  # 风险与环境变量
+  "RISK_Appetite_Investment",
+  "ENV_Context_Growth",
+  "ENV_Context_Volatility",
+  "ENV_Context_Stability"
 )
 
 # PDM variable (updated to match actual column name)
@@ -109,7 +118,7 @@ for (var in numerical_org_vars) {
     geom_density(alpha = 0.4, fill = density_fill, color = "#E8491D") +
     labs(
       title = paste("Distribution of", gsub("_", " ", var)),
-      x = gsub("Org_Structure_", "", var),
+      x = gsub("ORG_", "", var),
       y = "Frequency"
     ) +
     theme_custom
@@ -130,11 +139,17 @@ save_exploration_plot(org_structure_combined, "org_structure_distributions.pdf",
 decision_var_plots <- list()
 
 for (var in merged_ordinal_vars) {
+  # 提取前缀作为变量类别（如DEC, STY, CUL等）
+  prefix <- substr(var, 1, 3)
+  
+  # 提取实际的变量含义（如Authority_Dispersion）
+  var_meaning <- gsub("^[A-Z]+_", "", var)
+  
   p <- ggplot(boat2_data, aes(x = .data[[var]])) +
     geom_histogram(bins = 10, fill = decision_fill_color, color = decision_color, alpha = 0.8) +
     labs(
-      title = paste("Distribution of", gsub("_", " ", var)),
-      x = var,
+      title = paste(prefix, "-", gsub("_", " ", var_meaning)),
+      x = gsub("_", " ", var_meaning),
       y = "Frequency"
     ) +
     theme_custom
@@ -201,7 +216,7 @@ if (pdm_var %in% colnames(boat2_data)) {
         labs(
           title = paste("Relationship of PDM and", gsub("_", " ", var)),
           x = "Project Delivery Method",
-          y = gsub("Org_Structure_", "", var)
+          y = gsub("ORG_", "", var)
         ) +
         theme_custom +
         theme(
@@ -318,168 +333,192 @@ save_exploration_plot(org_decision_heatmap, "org_decision_correlations.pdf", wid
 # 5. Multidimensional Analysis -----------------------------------------------
 
 # 5.1 Simple scatterplot matrix of key variables
-# Select a subset of important variables for visualization
+cat("\n生成关键变量散点图矩阵...\n")
+# Select a subset of important variables for visualization (减少变量数量以提高性能)
 key_vars <- c(
-  "Distribution_Centralization1",
-  "Distribution_Formalization1",
-  "Style_Participation1",
-  "Culture_Symbolic",
-  "Flexibility_openness"
+  "DEC_Authority_Dispersion",
+  "STY_Participative_Inclusion",
+  "CUL_Integration_Vision",
+  "FLEX_Cognitive_Receptivity"
 )
 
-# Create scatterplot matrix with improved aesthetics
-if (pdm_var %in% colnames(boat2_data)) {
-  pairs_plot <- GGally::ggpairs(
-    boat2_data,
-    columns = key_vars,
-    mapping = aes(color = .data[[pdm_var]]),
-    upper = list(continuous = "cor"),
-    lower = list(continuous = "points"),
-    diag = list(continuous = "densityDiag"),
-    legend = 1
-  ) +
-    theme_minimal() +
-    theme(
-      strip.background = element_rect(fill = "#F5F5F5"),
-      strip.text = element_text(face = "bold", color = "#333333"),
-      axis.text = element_text(size = 8),
-      legend.position = "bottom"
+# 更健壮的错误处理
+tryCatch({
+  # Create scatterplot matrix with improved aesthetics
+  if (pdm_var %in% colnames(boat2_data)) {
+    cat("  使用PDM分组创建散点图矩阵...\n")
+    pairs_plot <- GGally::ggpairs(
+      boat2_data,
+      columns = key_vars,
+      mapping = aes(color = .data[[pdm_var]]),
+      upper = list(continuous = "cor"),
+      lower = list(continuous = "points"),
+      diag = list(continuous = "densityDiag"),
+      legend = 1
     ) +
-    labs(title = "Relationships Among Key Decision Variables")
-  
-  # Use the PDM colors
-  if (length(unique(boat2_data[[pdm_var]])) <= length(pdm_colors)) {
-    pairs_plot <- pairs_plot + scale_color_manual(values = pdm_colors) + scale_fill_manual(values = pdm_colors)
+      theme_minimal() +
+      theme(
+        strip.background = element_rect(fill = "#F5F5F5"),
+        strip.text = element_text(face = "bold", color = "#333333"),
+        axis.text = element_text(size = 8),
+        legend.position = "bottom"
+      ) +
+      labs(title = "Relationships Among Key Decision Variables")
+    
+    # Use the PDM colors
+    if (length(unique(boat2_data[[pdm_var]])) <= length(pdm_colors)) {
+      pairs_plot <- pairs_plot + scale_color_manual(values = pdm_colors) + scale_fill_manual(values = pdm_colors)
+    }
+    
+  } else {
+    cat("  创建不带PDM分组的散点图矩阵...\n")
+    pairs_plot <- GGally::ggpairs(
+      boat2_data,
+      columns = key_vars,
+      upper = list(continuous = "cor"),
+      lower = list(continuous = "points"),
+      diag = list(continuous = "densityDiag")
+    ) +
+      theme_minimal() +
+      theme(
+        strip.background = element_rect(fill = "#F5F5F5"),
+        strip.text = element_text(face = "bold", color = "#333333"),
+        axis.text = element_text(size = 8)
+      ) +
+      labs(title = "Relationships Among Key Decision Variables")
   }
-  
-} else {
-  pairs_plot <- GGally::ggpairs(
-    boat2_data,
-    columns = key_vars,
-    upper = list(continuous = "cor"),
-    lower = list(continuous = "points"),
-    diag = list(continuous = "densityDiag")
-  ) +
-    theme_minimal() +
-    theme(
-      strip.background = element_rect(fill = "#F5F5F5"),
-      strip.text = element_text(face = "bold", color = "#333333"),
-      axis.text = element_text(size = 8)
-    ) +
-    labs(title = "Relationships Among Key Decision Variables")
-}
 
-# Save pairs plot
-save_exploration_plot(pairs_plot, "key_variable_pairs.pdf", width = 12, height = 10)
+  # Save pairs plot
+  save_exploration_plot(pairs_plot, "key_variable_pairs.pdf", width = 12, height = 10)
+  cat("散点图矩阵保存成功\n")
+}, error = function(e) {
+  cat("创建散点图矩阵时出错:", conditionMessage(e), "\n")
+})
 
 # 6. Summary Statistics by PDM Type ------------------------------------------
+cat("\n生成PDM类型统计摘要...\n")
 
 # Calculate summary statistics by PDM Type
-if (pdm_var %in% colnames(boat2_data)) {
-  pdm_summaries <- boat2_data %>%
-    group_by(.data[[pdm_var]]) %>%
-    summarise(across(
-      all_of(c(numerical_org_vars, merged_ordinal_vars)),
-      list(
-        mean = ~ mean(., na.rm = TRUE),
-        sd = ~ sd(., na.rm = TRUE),
-        median = ~ median(., na.rm = TRUE)
-      )
-    ))
+tryCatch({
+  if (pdm_var %in% colnames(boat2_data)) {
+    pdm_summaries <- boat2_data %>%
+      group_by(.data[[pdm_var]]) %>%
+      summarise(across(
+        all_of(c(numerical_org_vars, key_vars)), # 使用减少后的变量集提高性能
+        list(
+          mean = ~ mean(., na.rm = TRUE),
+          sd = ~ sd(., na.rm = TRUE),
+          median = ~ median(., na.rm = TRUE)
+        ),
+        .names = "{.col}_{.fn}"
+      ))
 
-  # Save summary statistics
-  save_exploration_data(pdm_summaries, "pdm_variable_summaries.csv")
-} else {
-  cat("Warning: PDM variable column not found in boat2_data. Skipping PDM summary statistics.\n")
-}
+    # Save summary statistics
+    save_exploration_data(pdm_summaries, "pdm_variable_summaries.csv")
+    cat("PDM统计摘要保存成功\n")
+  } else {
+    cat("警告: 未在boat2_data中找到PDM变量列。跳过PDM统计摘要。\n")
+  }
+}, error = function(e) {
+  cat("生成PDM统计摘要出错:", conditionMessage(e), "\n")
+})
 
 # 7. ANOVA Analysis for PDM Differences --------------------------------------
+cat("\n开始ANOVA分析...\n")
 
 if (pdm_var %in% colnames(boat2_data)) {
-  cat("开始ANOVA分析...\n")
   tryCatch({
-    # Function to run ANOVA and extract p-values
+    # Function to run ANOVA and extract p-values - 更健壮的实现
     run_anova <- function(variable, data) {
-      formula <- as.formula(paste(variable, "~", pdm_var))
-      model <- aov(formula, data = data)
-      summary_table <- summary(model)
-      
-      # 打印当前分析的变量和结果
-      cat("分析变量:", variable, "\n")
-      
-      # 检查summary_table结构
-      cat("ANOVA结果摘要表结构:", names(summary_table[[1]]), "\n")
-      
-      if (pdm_var %in% rownames(summary_table[[1]])) {
-        p_value <- summary_table[[1]][pdm_var, "Pr(>F)"]
-        return(p_value)
-      } else {
-        cat("警告: 在ANOVA结果中未找到PDM变量行\n")
+      tryCatch({
+        formula <- as.formula(paste(variable, "~", pdm_var))
+        model <- aov(formula, data = data)
+        summary_table <- summary(model)
+        
+        # 从ANOVA表中提取p值 - 更安全的方法
+        if (length(summary_table) > 0 && "Pr(>F)" %in% colnames(summary_table[[1]])) {
+          # 找到PDM变量所在的行
+          pdm_row <- which(rownames(summary_table[[1]]) == pdm_var)
+          if (length(pdm_row) > 0) {
+            p_value <- summary_table[[1]][pdm_row, "Pr(>F)"]
+            return(p_value)
+          }
+        }
+        cat("  无法从ANOVA结果中提取", variable, "的p值\n")
         return(NA)
-      }
+      }, error = function(e) {
+        cat("  运行", variable, "的ANOVA分析时出错:", conditionMessage(e), "\n")
+        return(NA)
+      })
     }
 
-    # Run ANOVA for each decision variable
+    # 使用一小部分变量进行测试
+    test_vars <- c(numerical_org_vars, key_vars)
+    cat("使用", length(test_vars), "个变量进行ANOVA分析\n")
+    
+    # 创建结果数据框
     anova_results <- data.frame(
       Variable = character(),
       P_Value = numeric(),
-      Significant = logical()
+      Significant = logical(),
+      stringsAsFactors = FALSE
     )
 
-    # 先尝试对一个变量运行ANOVA，测试是否正常工作
-    test_var <- numerical_org_vars[1]
-    cat("测试ANOVA函数 - 变量:", test_var, "\n")
-    test_result <- run_anova(test_var, boat2_data)
-    cat("测试ANOVA结果:", test_result, "\n")
-
-    for (var in c(numerical_org_vars, merged_ordinal_vars)) {
-      cat("处理变量:", var, "\n")
+    # 逐个处理变量
+    for (var in test_vars) {
+      cat("  处理变量:", var, "\n")
       p_val <- run_anova(var, boat2_data)
       if (!is.na(p_val)) {
         anova_results <- rbind(anova_results, data.frame(
           Variable = var,
           P_Value = p_val,
-          Significant = p_val < 0.05
+          Significant = p_val < 0.05,
+          stringsAsFactors = FALSE
         ))
       }
     }
 
-    # Sort by p-value
-    anova_results <- anova_results[order(anova_results$P_Value), ]
+    # 只有当有结果时才继续处理
+    if (nrow(anova_results) > 0) {
+      # Sort by p-value
+      anova_results <- anova_results[order(anova_results$P_Value), ]
 
-    # Save ANOVA results
-    save_exploration_data(anova_results, "pdm_anova_results.csv")
-    cat("ANOVA结果表格保存成功\n")
+      # Save ANOVA results
+      save_exploration_data(anova_results, "pdm_anova_results.csv")
+      cat("ANOVA结果表格保存成功\n")
 
-    # Create visualization of ANOVA results with improved colors
-    anova_plot <- ggplot(anova_results, aes(x = reorder(Variable, -P_Value), y = -log10(P_Value), fill = Significant)) +
-      geom_bar(stat = "identity", alpha = 0.9) +
-      geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "#D55E00", size = 1) +
-      scale_fill_manual(values = c("#BBBBBB", "#2D708E")) +
-      labs(
-        title = "ANOVA Results: Variables Differing by PDM Type",
-        subtitle = "Higher bars indicate stronger evidence of difference; red line at p=0.05",
-        x = "Variable",
-        y = "-log10(p-value)"
-      ) +
-      theme_custom +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-        plot.subtitle = element_text(size = 9),
-        legend.position = "top"
-      )
+      # Create visualization of ANOVA results with improved colors
+      anova_plot <- ggplot(anova_results, aes(x = reorder(Variable, -P_Value), y = -log10(P_Value), fill = Significant)) +
+        geom_bar(stat = "identity", alpha = 0.9) +
+        geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "#D55E00", size = 1) +
+        scale_fill_manual(values = c("#BBBBBB", "#2D708E")) +
+        labs(
+          title = "ANOVA Results: Variables Differing by PDM Type",
+          subtitle = "Higher bars indicate stronger evidence of difference; red line at p=0.05",
+          x = "Variable",
+          y = "-log10(p-value)"
+        ) +
+        theme_custom +
+        theme(
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          plot.subtitle = element_text(size = 9),
+          legend.position = "top"
+        )
 
-    # Save ANOVA plot
-    save_exploration_plot(anova_plot, "pdm_anova_plot.pdf", width = 12, height = 8)
-    cat("ANOVA分析图保存成功\n")
+      # Save ANOVA plot
+      save_exploration_plot(anova_plot, "pdm_anova_plot.pdf", width = 12, height = 8)
+      cat("ANOVA分析图保存成功\n")
+    } else {
+      cat("警告: ANOVA分析没有产生有效结果\n")
+    }
   }, error = function(e) {
     cat("ANOVA分析出错:", conditionMessage(e), "\n")
   })
 } else {
-  cat("Warning: PDM variable column not found in boat2_data. Skipping ANOVA analysis.\n")
+  cat("警告: 未在boat2_data中找到PDM变量列。跳过ANOVA分析。\n")
 }
 
 # Print completion message
-cat("\nExploratory Data Analysis complete!\n")
-cat(paste("Visualizations saved to:", exploration_figures_dir, "\n"))
-cat(paste("Summary statistics saved to:", exploration_tables_dir, "\n"))
+cat("\n探索性数据分析完成!\n")
+cat(paste("可视化图表已保存到:", exploration_figures_dir, "\n"))
+cat(paste("统计摘要已保存到:", exploration_tables_dir, "\n"))

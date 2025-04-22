@@ -7,7 +7,7 @@ tryCatch(
   {
     # Method 1: If this script is sourced from run_all.R, maintain that directory
     # Check if script was already sourced and working directory is set
-    if (file.exists("R/00_setup.R") && file.exists("data") && file.exists("results")) {
+    if (file.exists("R/000_setup.R") && file.exists("data") && file.exists("results")) {
       cat("Working directory already correctly set to:", getwd(), "\n")
     } else {
       # Method 2: If run in RStudio directly

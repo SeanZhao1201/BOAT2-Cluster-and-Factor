@@ -2,7 +2,7 @@
 # This script performs fuzzy c-means clustering for building owners' decision-making profiles
 
 # 1. Load Setup and Data -----------------------------------------------------
-source("R/00_setup.R")
+source("R/000_setup.R")
 
 # Load modules for fuzzy clustering
 source("R/modules/fuzzy_clustering.R")

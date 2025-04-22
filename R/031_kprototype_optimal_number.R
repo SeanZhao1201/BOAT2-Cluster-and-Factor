@@ -2,7 +2,7 @@
 # This script determines the optimal number of clusters for K-prototype clustering
 
 # 1. Load Setup and Data -----------------------------------------------------
-source("R/00_setup.R")
+source("R/000_setup.R")
 
 # Create subdirectories for results if they don't exist
 dirs <- c(
@@ -26,10 +26,10 @@ cat("Column names:", paste(head(colnames(data), 10), collapse=", "), "...\n")
 
 # Define numerical and categorical variables
 numerical_org_vars <- c(
-  "Org_Structure_Employees",
-  "Org_Structure_Locations",
-  "Org_Structure_Depts",
-  "Org_Structure_Layers"
+  "ORG_Size_Employees",
+  "ORG_Complexity_Locations",
+  "ORG_Complexity_Departments",
+  "ORG_Hierarchy_Layers"
 )
 
 # All variables except PDM_Selected and PDM experience variables
@@ -68,7 +68,7 @@ save_data(kproto_data, "031_kprototype_optimal/kproto_data.csv")
 # 4. Determine Optimal Number of Clusters -----------------------------------
 
 # Calculate Gower distance (suitable for mixed data types)
-cat("\nCalculating Gower distance matrix...\n")
+cat("\n计算Gower距离矩阵...\n")
 gower_dist <- daisy(kproto_mixed_data, metric = "gower")
 
 # PAM silhouette analysis for k=2 to k=9
@@ -77,9 +77,9 @@ pam_silhouette_results <- data.frame(
   avg_silhouette = numeric(8)
 )
 
-cat("\nRunning PAM silhouette analysis for k=2 to k=9...\n")
+cat("\n运行PAM轮廓分析，k=2至k=9...\n")
 for (k in 2:9) {
-  cat("  Processing k =", k, "...\n")
+  cat("  处理k =", k, "...\n")
   pam_fit <- pam(gower_dist, k = k, diss = TRUE)
   pam_silhouette_results$avg_silhouette[k-1] <- pam_fit$silinfo$avg.width
 }
@@ -132,10 +132,11 @@ ggsave(
   height = 7,
   dpi = 300
 )
+cat("PAM轮廓分析图保存成功\n")
 
 # Elbow method for k=1 to k=10 using K-Prototype's own cost function
 # This is methodologically more consistent than using K-means on projected distances
-cat("\nRunning elbow method analysis for k=2 to k=10 using K-Prototype...\n")
+cat("\n运行Elbow方法分析，k=2至k=10，使用K-Prototype...\n")
 wss_results <- data.frame(
   k = 2:10,
   tot_withinss = numeric(9)
@@ -147,7 +148,7 @@ set.seed(123)
 # Run K-Prototype for different k values and extract the total within-cluster sum of squares
 for (i in 1:9) {
   k_value <- i + 1  # Starting from k=2
-  cat("  Processing k =", k_value, "...\n")
+  cat("  处理k =", k_value, "...\n")
   
   # Run K-Prototype clustering
   kproto_result <- clustMixType::kproto(
@@ -231,6 +232,7 @@ ggsave(
   height = 7,
   dpi = 300
 )
+cat("Elbow方法分析图保存成功\n")
 
 # Generate a combined plot with both methods
 combined_plot <- gridExtra::grid.arrange(
@@ -247,6 +249,7 @@ ggsave(
   height = 14,
   dpi = 300
 )
+cat("组合分析图保存成功\n")
 
 # Save optimal k values to a file for reference in next script
 optimal_k_data <- data.frame(
@@ -257,10 +260,10 @@ optimal_k_data <- data.frame(
 save_data(optimal_k_data, "031_kprototype_optimal/optimal_k.csv")
 
 # Print results
-cat("\nClustering Analysis Results:\n")
+cat("\n聚类分析结果:\n")
 cat("---------------------------\n")
-cat("Silhouette Method Optimal k:", optimal_k_silhouette, "\n")
-cat("Elbow Method Optimal k:", optimal_k_elbow, "\n")
-cat("\nAnalysis complete!\n")
-cat("Visualizations saved to results/figures/031_kprototype_optimal/\n")
-cat("Results saved to results/tables/031_kprototype_optimal/\n") 
+cat("轮廓方法最佳聚类数k:", optimal_k_silhouette, "\n")
+cat("Elbow方法最佳聚类数k:", optimal_k_elbow, "\n")
+cat("\n分析完成!\n")
+cat("可视化结果保存至: results/figures/031_kprototype_optimal/\n")
+cat("数据结果保存至: results/tables/031_kprototype_optimal/\n") 
