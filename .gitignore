@@ -1,6 +1,23 @@
+# R project files
 .Rhistory
 .RData
 .Rproj.user/
+
+# 图片和PDF文件
 *.pdf
-# 忽略Results目录下的所有文件
-Results/ 
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.svg
+
+# Results目录下的所有输出文件
+Results/
+
+# 日志文件
+*.log
+
+# Rplots
+Rplots.pdf

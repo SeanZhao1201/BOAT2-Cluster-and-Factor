@@ -173,30 +173,32 @@ for (k in k_values) {
         data = cluster_counts,
         aes(label = paste0("n=", n), y = 0.8),
         position = position_dodge(width = 0.7),
-        size = 3.2, fontface = "bold", vjust = 0
+        size = 3.8, fontface = "bold", vjust = 0
       ) +
       labs(
         title = paste("PDM Experience by Cluster (k =", k, ")"),
         subtitle = paste("Total samples:", nrow(cluster_data[[data_key]])),
         x = "Project Delivery Method", 
-        y = "Experience Level (1-5)",
+        y = "Experience Level (1-4)",
         fill = "Cluster"
       ) +
       scale_fill_manual(values = colors) +
       scale_x_discrete(labels = function(x) gsub("PDM_Experience_", "", x)) +
-      theme_minimal(base_size = 14) +
+      theme_minimal(base_size = 16) +
       theme(
-        plot.title = element_text(face = "bold", size = 16),
-        plot.subtitle = element_text(size = 12, color = "gray40"),
-        axis.title = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        plot.title = element_text(face = "bold", size = 20),
+        plot.subtitle = element_text(size = 16, color = "gray40"),
+        axis.title = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+        axis.text.y = element_text(size = 14),
         legend.position = "right",
+        legend.text = element_text(size = 14),
+        legend.title = element_text(face = "bold", size = 16),
         panel.grid.major.y = element_line(color = "gray95"),
         panel.grid.minor = element_blank(),
-        legend.background = element_rect(fill = "white", color = "gray90"),
-        legend.title = element_text(face = "bold")
+        legend.background = element_rect(fill = "white", color = "gray90")
       ) +
-      scale_y_continuous(limits = c(0.5, 5.5), breaks = 1:5)
+      scale_y_continuous(limits = c(0.5, 4.5), breaks = 1:4)
     
     # Save the main box plot
     ggsave(

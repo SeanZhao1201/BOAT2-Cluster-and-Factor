@@ -114,7 +114,7 @@ for (dir in dirs) {
 }
 
 # Define k values to analyze (same as in the k-prototype analysis)
-kproto_k_values <- c(2, 3)
+kproto_k_values <- c(2, 3, 4, 5)
 cat("Will generate radar charts for k values:", paste(kproto_k_values, collapse = ", "), "\n")
 
 # Execute CSV test reading
@@ -130,7 +130,13 @@ cat("\nLoading k-prototype clustering results...\n")
 
 # Function to load centroids data for a specific k value
 load_centroids <- function(k) {
-  file_path <- paste0("results/tables/032_kprototype_analysis/kproto_centroids_k", k, ".csv")
+  # Set the correct file path based on k value
+  if (k == 5) {
+    file_path <- paste0("results/tables/032_A_kprototype_analysis/kproto_centroids_k", k, ".csv")
+  } else {
+    file_path <- paste0("results/tables/032_kprototype_analysis/kproto_centroids_k", k, ".csv")
+  }
+  
   if (file.exists(file_path)) {
     # Add more debug information
     cat("  Reading centroids file:", file_path, "\n")
@@ -163,7 +169,13 @@ load_centroids <- function(k) {
 
 # Function to load medians data for a specific k value
 load_medians <- function(k) {
-  file_path <- paste0("results/tables/032_kprototype_analysis/kproto_medians_k", k, ".csv")
+  # Set the correct file path based on k value
+  if (k == 5) {
+    file_path <- paste0("results/tables/032_A_kprototype_analysis/kproto_medians_k", k, ".csv")
+  } else {
+    file_path <- paste0("results/tables/032_kprototype_analysis/kproto_medians_k", k, ".csv")
+  }
+  
   if (file.exists(file_path)) {
     # Add more debug information
     cat("  Reading medians file:", file_path, "\n")
@@ -196,7 +208,13 @@ load_medians <- function(k) {
 
 # Function to load full cluster data (for box plots)
 load_cluster_data <- function(k) {
-  file_path <- paste0("results/tables/032_kprototype_analysis/kproto_clusters_k", k, ".csv")
+  # Set the correct file path based on k value
+  if (k == 5) {
+    file_path <- paste0("results/tables/032_A_kprototype_analysis/kproto_clusters_k", k, ".csv")
+  } else {
+    file_path <- paste0("results/tables/032_kprototype_analysis/kproto_clusters_k", k, ".csv")
+  }
+  
   if (file.exists(file_path)) {
     clusters <- read.csv(file_path)
     cat("  Loaded cluster data for k =", k, "\n")
@@ -243,99 +261,7 @@ create_box_plots <- function(k, cluster_data) {
     org_vars <- c(org_vars, "ORG_Employees_Log")
   }
   
-  # Create individual box plot for each variable
-  for (var in org_vars) {
-    # Skip the original ORG_Employees if we have the log version
-    if (var == "ORG_Employees" && "ORG_Employees_Log" %in% org_vars) {
-      next  # Skip, only use the log-transformed version
-    }
-    
-    var_display <- gsub("_Log$", " (Log Scale)", var)  # Better label for log-transformed variables
-    var_display <- gsub("_", " ", var_display)  # Replace underscores with spaces for friendlier labels
-    
-    # Prepare data
-    plot_data <- cluster_data[, c("Cluster", var)]
-    
-    # Handle outliers
-    upper_limit <- NULL
-    if (var != "ORG_Employees_Log" && var %in% c("ORG_Employees", "ORG_Locations", "ORG_Departments")) {
-      # Apply cap to large organization variables
-      q3 <- quantile(plot_data[[var]], 0.75, na.rm = TRUE)
-      iqr <- IQR(plot_data[[var]], na.rm = TRUE)
-      upper_limit <- q3 + 1.5 * iqr
-      
-      cat("    Variable", var, "has outliers. Using capped values for visualization.\n")
-      cat("    Original range:", min(plot_data[[var]], na.rm = TRUE), "to", max(plot_data[[var]], na.rm = TRUE), "\n")
-      cat("    Upper limit for visualization:", upper_limit, "\n")
-      
-      # Create capped version for visualization
-      plot_data$capped_value <- pmin(plot_data[[var]], upper_limit)
-      var_to_plot <- "capped_value"
-      var_display <- paste0(var_display, " (Capped)")
-    } else {
-      var_to_plot <- var
-    }
-    
-    # Create Box Plot
-    pdf_file <- paste0(box_dir, "/", gsub(" ", "_", tolower(var)), "_boxplot.pdf")
-    pdf(pdf_file, width = 10, height = 8)
-    
-    # Set margins
-    par(mar = c(5, 6, 4, 2) + 0.1)
-    
-    # Draw box plot
-    boxplot(
-      reformulate("Cluster", var_to_plot), 
-      data = plot_data,
-      main = paste0(var_display, " by Cluster"),
-      xlab = "Cluster",
-      ylab = var_display,
-      col = brewer.pal(n = min(max(k, 3), 9), name = "Set1"),
-      cex.axis = 1.2,
-      cex.lab = 1.3,
-      cex.main = 1.4,
-      outline = TRUE,
-      axes = (var != "ORG_Employees_Log") # Don't show default axes for log variable
-    )
-    
-    # Add more meaningful labels for log axis
-    if (var == "ORG_Employees_Log") {
-      # Get current axis range
-      log_range <- range(plot_data[[var]], na.rm = TRUE)
-      # Create appropriate ticks
-      log_breaks <- seq(from = floor(log_range[1]), to = ceiling(log_range[2]), by = 1)
-      # Original values (exponentiate back)
-      orig_values <- round(expm1(log_breaks))
-      # Custom labels
-      axis(2, at = log_breaks, labels = paste0(round(log_breaks, 1), "\n(", orig_values, ")"), las = 1, cex.axis = 1.1)
-      # Add grid lines
-      abline(h = log_breaks, col = "lightgray", lty = 3)
-    }
-    
-    # If there's an upper limit, add limit annotation
-    if (!is.null(upper_limit)) {
-      mtext(paste("Values capped at", round(upper_limit, 1)), side = 3, line = 0.5, cex = 0.9, col = "red")
-    }
-    
-    # Add median value labels
-    med_vals <- tapply(plot_data[[var]], plot_data$Cluster, median, na.rm = TRUE)
-    if (var == "ORG_Employees_Log") {
-      # For log values, show both transformed and original values
-      med_pos <- med_vals + 0.15 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE))
-      text_labels <- sprintf("%.2f\n(%.0f)", med_vals, expm1(med_vals))
-      text(1:k, med_pos, text_labels, cex = 1.1)
-    } else {
-      # For normal values, just show original
-      text(1:k, med_vals + 0.15 * diff(range(plot_data[[var_to_plot]], na.rm = TRUE)), 
-           sprintf("%.2f", med_vals), cex = 1.1)
-    }
-    
-    # Close device
-    dev.off()
-    cat("    Box plot saved to:", pdf_file, "\n")
-  }
-  
-  # Create combined box plot
+  # Create combined box plot for all ORG_ variables
   combined_pdf <- paste0(box_dir, "/organization_structure_combined_boxplot.pdf")
   
   # Calculate needed rows
@@ -378,7 +304,7 @@ create_box_plots <- function(k, cluster_data) {
       var_to_plot <- var
     }
     
-    # Draw box plot
+    # First draw the basic boxplot without outliers
     boxplot(
       reformulate("Cluster", var_to_plot), 
       data = plot_data,
@@ -389,9 +315,27 @@ create_box_plots <- function(k, cluster_data) {
       cex.axis = 1.2,
       cex.lab = 1.3,
       cex.main = 1.4,
-      outline = TRUE,
+      outline = FALSE,  # No outliers in the initial boxplot
       axes = (var != "ORG_Employees_Log") # Don't show default axes for log variable
     )
+    
+    # Add jittered outliers manually
+    for (i in 1:k) {
+      # Get data for this cluster
+      cluster_i_data <- plot_data[plot_data$Cluster == i, ]
+      
+      # Calculate boxplot stats to identify outliers
+      box_stats <- boxplot.stats(cluster_i_data[[var_to_plot]])
+      outliers <- box_stats$out
+      
+      if (length(outliers) > 0) {
+        # Create x positions with jitter
+        x_pos <- jitter(rep(i, length(outliers)), amount = 0.2)
+        
+        # Plot outliers with jitter
+        points(x_pos, outliers, pch = 19, col = adjustcolor("black", alpha.f = 0.5), cex = 0.8)
+      }
+    }
     
     # Add more meaningful labels for log axis
     if (var == "ORG_Employees_Log") {

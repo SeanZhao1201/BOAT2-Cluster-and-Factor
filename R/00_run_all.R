@@ -1,16 +1,13 @@
 # BOAT2 Cluster and Factor Analysis - Main Script
-# This script runs all analysis steps in sequence using the new modular structure
+# This script runs all analysis steps in sequence from 010 to 050
 
-# Function to run selected analysis components
+# Function to run BOAT2 analysis
 run_boat2_analysis <- function(
   do_setup = TRUE,
   do_data_prep = TRUE, 
   do_exploration = TRUE, 
-  do_dimensionality = TRUE,
-  do_hierarchical = TRUE,
-  do_kprototype = TRUE,
-  do_fuzzy = TRUE,
-  do_reports = TRUE
+  do_factoring = TRUE,
+  do_fuzzy = TRUE
 ) {
   
   # Automatically set working directory to project root
@@ -44,11 +41,7 @@ run_boat2_analysis <- function(
   # 1. Setup ----------------------------------------------------------------
   if (do_setup) {
     cat("1. Loading required packages and initializing environment...\n")
-    source("R/00_setup.R")
-
-    # Load common modules
-    source("R/modules/visualization.R")
-    source("R/modules/validation.R")
+    source("R/000_setup.R")
   } else {
     cat("1. Setup skipped.\n")
   }
@@ -56,7 +49,13 @@ run_boat2_analysis <- function(
   # 2. Data Preparation -----------------------------------------------------
   if (do_data_prep) {
     cat("\n2. Preparing and cleaning data...\n")
-    source("R/01_data_preparation.R")
+    source("R/010_data_preparation.R")
+    
+    # Also run data dictionary creation if exists
+    if (file.exists("R/011_create_data_dictionary.R")) {
+      cat("\nCreating data dictionary...\n")
+      source("R/011_create_data_dictionary.R")
+    }
   } else {
     cat("\n2. Data preparation skipped.\n")
   }
@@ -64,99 +63,58 @@ run_boat2_analysis <- function(
   # 3. Exploratory Data Analysis --------------------------------------------
   if (do_exploration) {
     cat("\n3. Performing exploratory data analysis...\n")
-    source("R/02_exploration.R")
+    source("R/020_exploration.R")
   } else {
     cat("\n3. Exploratory data analysis skipped.\n")
   }
 
-  # 4. Dimensionality Reduction ---------------------------------------------
-  if (do_dimensionality) {
-    cat("\n4. Performing dimensionality reduction (PCA & UMAP)...\n")
-    source("R/03_dimensionality.R")
-  } else {
-    cat("\n4. Dimensionality reduction skipped.\n")
+  # 4. K-Prototype Clustering Analysis -------------------------------------
+  cat("\n4. Performing K-Prototype clustering analysis...\n")
+  
+  # Determine optimal number of clusters
+  if (file.exists("R/031_kprototype_optimal_number.R")) {
+    cat("\n4.1 Determining optimal number of clusters for K-Prototype...\n")
+    source("R/031_kprototype_optimal_number.R")
+  }
+  
+  # Perform K-Prototype analysis
+  if (file.exists("R/032_kprototype_analysis.R")) {
+    cat("\n4.2 Performing K-Prototype cluster analysis...\n")
+    source("R/032_kprototype_analysis.R")
+  }
+  
+  # PDM experience clustering
+  if (file.exists("R/033_cluster_pdm_experience.R")) {
+    cat("\n4.3 Clustering PDM experience data...\n")
+    source("R/033_cluster_pdm_experience.R")
+  }
+  
+  # Radar charts
+  if (file.exists("R/034_radar_charts.R")) {
+    cat("\n4.4 Creating radar charts for visualization...\n")
+    source("R/034_radar_charts.R")
   }
 
-  # 5. Hierarchical Clustering Analysis -------------------------------------
-  if (do_hierarchical) {
-    cat("\n5. Performing hierarchical clustering...\n")
-    # Load hierarchical clustering module
-    source("R/modules/clustering/hierarchical.R")
-    # Run hierarchical clustering from the original script for backward compatibility
-    source("R/04_clustering.R")
-  } else {
-    cat("\n5. Hierarchical clustering skipped.\n")
-  }
-
-  # 6. K-Prototype Clustering Analysis -------------------------------------
-  if (do_kprototype) {
-    cat("\n6. Performing K-Prototype clustering with different k values (2, 3, 7)...\n")
-    # Run K-Prototype clustering analysis
-    source("R/kprototype_analysis.R")
-  } else {
-    cat("\n6. K-Prototype clustering skipped.\n")
-  }
-
-  # 7. Fuzzy Clustering Analysis --------------------------------------------
-  if (do_fuzzy) {
-    cat("\n7. Performing fuzzy c-means clustering...\n")
-    source("R/05_fuzzy_clustering.R")
-  } else {
-    cat("\n7. Fuzzy clustering skipped.\n")
-  }
-
-  # 8. Create Combined Report -----------------------------------------------
-  if (do_reports) {
-    cat("\n8. Creating combined report comparing all clustering methods...\n")
-
-    # Create PDF for combined report
-    pdf("results/figures/combined_clustering_comparison.pdf", width = 12, height = 9)
-
-    # Title page
-    plot.new()
-    text(0.5, 0.7, "BOAT2 Cluster and Factor Analysis", cex = 2, font = 2)
-    text(0.5, 0.6, "Comparison of Different Clustering Methods", cex = 1.5)
-    text(0.5, 0.5, paste("Generated on:", Sys.Date()), cex = 1.2)
-
-    # Load results from different methods
-    if (file.exists("results/tables/hierarchical_clusters.csv") &&
-        file.exists("results/tables/kproto_clusters_k3.csv") &&
-        file.exists("results/tables/fuzzy_clustering_results.csv")) {
-      
-      # Load clustering results
-      hierarchical <- read.csv("results/tables/hierarchical_clusters.csv")
-      kproto_k3 <- read.csv("results/tables/kproto_clusters_k3.csv")
-      fuzzy <- read.csv("results/tables/fuzzy_clustering_results.csv")
-      
-      # Create PDM distribution plots
-      hierarchical_pdm <- create_pdm_distribution_plot(
-        hierarchical,
-        title = "PDM Distribution by Hierarchical Cluster"
-      )
-      
-      kproto_pdm <- create_pdm_distribution_plot(
-        kproto_k3,
-        title = "PDM Distribution by K-Prototype Cluster (k=3)"
-      )
-      
-      fuzzy_pdm <- create_pdm_distribution_plot(
-        fuzzy %>% mutate(Cluster = HardCluster),
-        title = "PDM Distribution by Fuzzy C-Means Cluster"
-      )
-      
-      # Print PDM distributions
-      print(hierarchical_pdm)
-      print(kproto_pdm)
-      print(fuzzy_pdm)
-      
-      # Compare variable importance across methods
-      # This would depend on your specific analysis needs
+  # 5. Factor Analysis -----------------------------------------------------
+  if (do_factoring) {
+    cat("\n5. Performing factor analysis...\n")
+    source("R/040_Factoring.R")
+    
+    # Factor visualization
+    if (file.exists("R/041_Factor_Visualization.R")) {
+      cat("\n5.1 Creating factor visualizations...\n")
+      source("R/041_Factor_Visualization.R")
     }
-
-    # Close the PDF
-    dev.off()
   } else {
-    cat("\n8. Combined report creation skipped.\n")
+    cat("\n5. Factor analysis skipped.\n")
+  }
+
+  # 6. Fuzzy Clustering Analysis --------------------------------------------
+  if (do_fuzzy) {
+    cat("\n6. Performing fuzzy c-means clustering...\n")
+    source("R/050_fuzzy_clustering.R")
+  } else {
+    cat("\n6. Fuzzy clustering skipped.\n")
   }
 
   # Record end time and calculate duration
@@ -171,24 +129,7 @@ run_boat2_analysis <- function(
   cat("Total duration:", format(duration), "\n")
   cat("========================================================\n\n")
 
-  cat("All results have been saved to the 'results' directory:\n")
-  cat("- Tables: results/tables/\n")
-  cat("- Figures: results/figures/\n\n")
-
-  cat("Main output files include:\n")
-  cat("- Hierarchical clustering results: hierarchical_clusters.csv\n")
-  cat("- K-prototypes clustering results: kproto_clusters_k2.csv, kproto_clusters_k3.csv, kproto_clusters_k7.csv\n")
-  cat("- Fuzzy clustering results: fuzzy_clustering_results.csv\n")
-  cat("- PCA/UMAP results: dimensionality_reduction_results.csv\n\n")
-
-  cat("To view the PDF reports, check:\n")
-  cat("- Exploratory analysis: results/figures/key_variable_pairs.pdf\n")
-  cat("- Dimensionality reduction: results/figures/dimensionality_reduction_analysis.pdf\n")
-  cat("- Hierarchical clustering: results/figures/hierarchical_dendrogram.pdf\n")
-  cat("- K-Prototype clustering: results/figures/kproto_comparison_report.pdf\n")
-  cat("- K-Prototype detailed reports: results/figures/kproto_k2_report.pdf, kproto_k3_report.pdf, kproto_k7_report.pdf\n")
-  cat("- Fuzzy clustering: results/figures/fuzzy_clustering_report.pdf\n")
-  cat("- Combined comparison: results/figures/combined_clustering_comparison.pdf\n") 
+  cat("All results have been saved to the 'results' directory.\n")
 }
 
 # Parse command line arguments if running from command line
@@ -204,11 +145,8 @@ if (!interactive()) {
     steps_to_run$do_setup <- "setup" %in% args
     steps_to_run$do_data_prep <- "data" %in% args
     steps_to_run$do_exploration <- "explore" %in% args
-    steps_to_run$do_dimensionality <- "dim" %in% args
-    steps_to_run$do_hierarchical <- "hier" %in% args
-    steps_to_run$do_kprototype <- "kproto" %in% args
+    steps_to_run$do_factoring <- "factor" %in% args
     steps_to_run$do_fuzzy <- "fuzzy" %in% args
-    steps_to_run$do_reports <- "report" %in% args
     
     # If "all" is specified, run everything
     if ("all" %in% args) {
@@ -216,11 +154,8 @@ if (!interactive()) {
         do_setup = TRUE, 
         do_data_prep = TRUE, 
         do_exploration = TRUE, 
-        do_dimensionality = TRUE,
-        do_hierarchical = TRUE,
-        do_kprototype = TRUE,
-        do_fuzzy = TRUE,
-        do_reports = TRUE
+        do_factoring = TRUE,
+        do_fuzzy = TRUE
       )
     }
     
@@ -230,11 +165,8 @@ if (!interactive()) {
         do_setup = TRUE, 
         do_data_prep = TRUE, 
         do_exploration = TRUE, 
-        do_dimensionality = TRUE,
-        do_hierarchical = TRUE,
-        do_kprototype = TRUE,
-        do_fuzzy = TRUE,
-        do_reports = TRUE
+        do_factoring = TRUE,
+        do_fuzzy = TRUE
       )
     }
     
@@ -247,6 +179,6 @@ if (!interactive()) {
 } else {
   # If running interactively (e.g., in RStudio), run all steps by default
   # To run specific steps, call the function with specific parameters, e.g.:
-  # run_boat2_analysis(do_hierarchical = FALSE, do_fuzzy = FALSE)
+  # run_boat2_analysis(do_factoring = FALSE, do_fuzzy = FALSE)
   run_boat2_analysis()
 } 

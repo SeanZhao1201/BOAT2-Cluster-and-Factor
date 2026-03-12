@@ -492,6 +492,33 @@ boat2_data_enhanced <- cleaned_data
 cat("Enhanced dataset dimensions:", dim(boat2_data_enhanced), "\n")
 cat("Number of NAs in enhanced dataset:", sum(is.na(boat2_data_enhanced)), "\n")
 
+# 4.2 Create dataset with Project_Success variable
+cat("\nCreating dataset with Project_Success variable...\n")
+# This assumes 'Project_Success' is the correct column name and it exists in pre_cleaned_data_imputed.
+
+# MODIFIED APPROACH:
+# Start with 'cleaned_data' which has the harmonized PDM_Selected.
+# Add 'Project_Success' column from 'pre_cleaned_data_imputed'.
+# This assumes row order has been maintained between pre_cleaned_data_imputed and cleaned_data.
+if (nrow(cleaned_data) == nrow(pre_cleaned_data_imputed)) {
+  # Select the desired columns from cleaned_data first
+  base_for_success <- cleaned_data %>%
+    select(PDM_Selected, all_of(PDM_Exp_Names), all_of(ORG_Num_Names), all_of(DEC_Likert_Names))
+  
+  # Add Project_Success from pre_cleaned_data_imputed and ensure it's the first column
+  BOAT2_Data_Success <- base_for_success %>%
+    mutate(Project_Success = pre_cleaned_data_imputed$Project_Success) %>%
+    select(Project_Success, everything())
+  
+  cat("PDM_Selected in BOAT2_Data_Success (after harmonization attempt):\n")
+  print(table(BOAT2_Data_Success$PDM_Selected))
+  
+} else {
+  stop("Row count mismatch between cleaned_data and pre_cleaned_data_imputed. Cannot reliably create BOAT2_Data_Success.")
+}
+
+cat("BOAT2_Data_Success dimensions:", dim(BOAT2_Data_Success), "\n")
+
 # 5. Save Prepared Datasets for Further Analysis -----------------------------
 cat("Saving datasets to data folder...\n")
 
@@ -504,6 +531,9 @@ save_to_data_folder <- function(data, filename) {
 
 # Save the enhanced dataset
 save_to_data_folder(boat2_data_enhanced, "BOAT2_Data_Enhanced.csv")
+
+# Save the dataset with Project_Success
+save_to_data_folder(BOAT2_Data_Success, "BOAT2_Data_Success.csv")
 
 # 6. Summary Statistics ------------------------------------------------------
 cat("\n============ SUMMARY STATISTICS BY VARIABLE GROUPS ============\n")

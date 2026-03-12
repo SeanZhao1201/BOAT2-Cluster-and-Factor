@@ -1,13 +1,13 @@
-# BOAT2 Cluster and Factor Analysis - K-Prototype Clustering Analysis
-# This script performs K-prototype clustering analysis
+# BOAT2 Cluster and Factor Analysis - K-Prototype Clustering Analysis (k=5)
+# This script performs K-prototype clustering analysis with k=5
 
 # 1. Load Setup and Data -----------------------------------------------------
 source("R/000_setup.R")
 
 # Create subdirectories for results if they don't exist
 dirs <- c(
-  "results/figures/032_kprototype_analysis",
-  "results/tables/032_kprototype_analysis"
+  "results/figures/032_A_kprototype_analysis",
+  "results/tables/032_A_kprototype_analysis"
 )
 
 for (dir in dirs) {
@@ -21,9 +21,9 @@ for (dir in dirs) {
 data <- read.csv("data/BOAT2_Data_Enhanced.csv")
 cat("Loaded dataset with", nrow(data), "rows and", ncol(data), "columns.\n")
 
-# We'll analyze k=2, k=3, and k=4
-kproto_k_values <- c(2, 3, 4)
-cat("Will analyze using the following k values:", paste(kproto_k_values, collapse = ", "), "\n")
+# We'll analyze k=5 as determined by elbow method in 031
+kproto_k_values <- c(5)
+cat("Will analyze using k =", kproto_k_values, "as determined by elbow method\n")
 
 # 2. Define Variables --------------------------------------------------------
 
@@ -80,7 +80,7 @@ cat("\nChecking clustering dataset column names:\n")
 print(head(colnames(kproto_mixed_data)))
 
 # Save preprocessed data for later use
-save_data(kproto_data, "032_kprototype_analysis/kproto_data.csv")
+save_data(kproto_data, "032_A_kprototype_analysis/kproto_data.csv")
 cat("Preprocessed data saved successfully\n")
 
 # 4. Perform K-Prototypes Clustering -----------------------------------------
@@ -90,7 +90,7 @@ kproto_results <- list()
 
 # Function to run k-prototypes clustering
 run_kproto_analysis <- function(k_value) {
-  # Set seed for reproducibility
+  # Set seed for reproducibility (same as 031 and 032)
   set.seed(123)
   
   cat("\nRunning K-Prototype clustering, k =", k_value, "...\n")
@@ -106,32 +106,10 @@ run_kproto_analysis <- function(k_value) {
   cluster_results <- kproto_data %>%
     mutate(Cluster = kproto_result$cluster)
   
-  # --- START: Add Cluster Renaming Logic Here ---
-  # Rename clusters if needed
-  if (k_value == 2) {
-    cat("  Renaming clusters for k=2 (swapping 1 and 2)\\n")
-    cluster_results <- cluster_results %>%
-      mutate(Cluster = case_when(
-        Cluster == 1 ~ 2, # Map original 1 to new 2
-        Cluster == 2 ~ 1, # Map original 2 to new 1
-        TRUE ~ Cluster
-      ))
-  } else if (k_value == 3) {
-    cat("  Renaming clusters for k=3 (swapping 1 and 2, keeping 3)\\n")
-    cluster_results <- cluster_results %>%
-      mutate(Cluster = case_when(
-        Cluster == 1 ~ 2, # Map original 1 to new 2
-        Cluster == 2 ~ 1, # Map original 2 to new 1
-        Cluster == 3 ~ 3, # Keep 3 as 3
-        TRUE ~ Cluster
-      ))
-  }
-  # --- END: Add Cluster Renaming Logic Here ---
-  
-  # Save k-prototypes clustering results (now with renamed clusters)
+  # Save k-prototypes clustering results
   save_data(
     cluster_results, 
-    paste0("032_kprototype_analysis/kproto_clusters_k", k_value, ".csv")
+    paste0("032_A_kprototype_analysis/kproto_clusters_k", k_value, ".csv")
   )
   cat("  Clustering results saved successfully\n")
   
@@ -153,7 +131,7 @@ run_kproto_analysis <- function(k_value) {
   # Save centroids
   save_data(
     centroids, 
-    paste0("032_kprototype_analysis/kproto_centroids_k", k_value, ".csv")
+    paste0("032_A_kprototype_analysis/kproto_centroids_k", k_value, ".csv")
   )
   cat("  Cluster centroids saved successfully\n")
   
@@ -184,9 +162,33 @@ run_kproto_analysis <- function(k_value) {
   # Save median data
   save_data(
     medians, 
-    paste0("032_kprototype_analysis/kproto_medians_k", k_value, ".csv")
+    paste0("032_A_kprototype_analysis/kproto_medians_k", k_value, ".csv")
   )
   cat("  Cluster medians saved successfully\n")
+  
+  # Get distribution of PDM in each cluster
+  pdm_distribution <- cluster_results %>%
+    group_by(Cluster, PDM_Selected) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    group_by(Cluster) %>%
+    mutate(Percentage = round(Count / sum(Count) * 100, 1)) %>%
+    ungroup() %>%
+    pivot_wider(
+      id_cols = Cluster,
+      names_from = PDM_Selected,
+      values_from = c(Count, Percentage),
+      values_fill = list(Count = 0, Percentage = 0)
+    )
+  
+  # Save PDM distribution
+  save_data(
+    pdm_distribution,
+    paste0("032_A_kprototype_analysis/pdm_distribution_k", k_value, ".csv")
+  )
+  cat("  PDM distribution saved successfully\n")
+  
+  # Print cluster sizes for quick reference
+  cat("  Cluster sizes:", paste(sort(table(cluster_results$Cluster), decreasing = TRUE), collapse = ", "), "\n")
   
   return(list(
     results = cluster_results,
@@ -200,6 +202,13 @@ run_kproto_analysis <- function(k_value) {
 for (k in kproto_k_values) {
   kproto_results[[paste0("k", k)]] <- run_kproto_analysis(k)
 }
+
+# Add comparison with k=5 clusters from 031 script output
+cat("\nComparing with clusters found in 031 script:\n")
+cat("  k=5 in 031 had cluster sizes: 51, 25, 13, 19, 1\n")
+k <- 5
+cluster_sizes <- table(kproto_results[[paste0("k", k)]]$results$Cluster)
+cat("  k=5 in this script has cluster sizes:", paste(cluster_sizes, collapse = ", "), "\n")
 
 # 5. Create PDM Distribution Analysis ----------------------------------------
 cat("\nStarting PDM distribution analysis...\n")
@@ -356,11 +365,11 @@ create_pdm_plot <- function(cluster_results, k) {
     scale_y_continuous(expand = expansion(mult = c(0, 0.2)))
   
   # Save chart with adjusted dimensions (taller)
-  filename <- paste0("results/figures/032_kprototype_analysis/pdm_distribution_k", k, ".pdf")
+  filename <- paste0("results/figures/032_A_kprototype_analysis/pdm_distribution_k", k, ".pdf")
   ggsave(filename, p, width = 8, height = 10, dpi = 300)
   
   # Also save as PNG for easier viewing
-  png_filename <- paste0("results/figures/032_kprototype_analysis/pdm_distribution_k", k, ".png")
+  png_filename <- paste0("results/figures/032_A_kprototype_analysis/pdm_distribution_k", k, ".png")
   ggsave(png_filename, p, width = 8, height = 10, dpi = 300)
   
   cat("PDM distribution plot saved to:", filename, "\n")
@@ -426,7 +435,7 @@ create_centroids_plot <- function(centroids, k, is_median = FALSE) {
   
   # Save the plot
   type_suffix <- ifelse(is_median, "medians", "centroids")
-  filename <- paste0("results/figures/032_kprototype_analysis/", type_suffix, "_k", k, ".pdf")
+  filename <- paste0("results/figures/032_A_kprototype_analysis/", type_suffix, "_k", k, ".pdf")
   ggsave(filename, p, width = 14, height = 8, dpi = 300)
   cat("Cluster ", plot_type, " plot saved to:", filename, "\n")
   
@@ -457,14 +466,14 @@ create_centroids_plot <- function(centroids, k, is_median = FALSE) {
     geom_hline(yintercept = 3, linetype = "dashed", color = "gray50")
   
   # Save the faceted plot
-  filename <- paste0("results/figures/032_kprototype_analysis/", type_suffix, "_faceted_k", k, ".pdf")
+  filename <- paste0("results/figures/032_A_kprototype_analysis/", type_suffix, "_faceted_k", k, ".pdf")
   ggsave(filename, p_facet, width = 16, height = 10, dpi = 300)
   cat("Grouped cluster ", plot_type, " plot saved to:", filename, "\n")
   
   return(list(main = p, faceted = p_facet))
-}
+} 
 
-# 7. Execute Analysis for Each k Value ---------------------------------------
+# 7. Execute Analysis for k=5 ---------------------------------------
 
 pdm_plots <- list()
 centroids_plots <- list()
@@ -566,7 +575,7 @@ perform_statistical_analysis <- function(k) {
   }
   
   # Save statistical test results
-  save_data(stat_results, paste0("032_kprototype_analysis/statistical_tests_k", k, ".csv"))
+  save_data(stat_results, paste0("032_A_kprototype_analysis/statistical_tests_k", k, ".csv"))
   
   # Create visualization of test results
   if (nrow(stat_results) > 0) {
@@ -594,7 +603,7 @@ perform_statistical_analysis <- function(k) {
       )
     
     # Save plot
-    filename <- paste0("results/figures/032_kprototype_analysis/statistical_tests_k", k, ".pdf")
+    filename <- paste0("results/figures/032_A_kprototype_analysis/statistical_tests_k", k, ".pdf")
     ggsave(filename, p, width = 14, height = 8, dpi = 300)
     cat("Statistical analysis plot saved to:", filename, "\n")
   } else {
@@ -604,7 +613,7 @@ perform_statistical_analysis <- function(k) {
   return(stat_results)
 }
 
-# Run statistical analysis for both k values
+# Run statistical analysis
 stat_results <- list()
 for (k in kproto_k_values) {
   cat("\nPerforming statistical analysis for k =", k, "...\n")
@@ -632,7 +641,7 @@ for (k in kproto_k_values) {
   
   # Save PDM experience summary
   save_data(experience_summary, 
-            paste0("032_kprototype_analysis/pdm_experience_by_cluster_k", k, ".csv"))
+            paste0("032_A_kprototype_analysis/pdm_experience_by_cluster_k", k, ".csv"))
   
   # Create visualization
   exp_plot_data <- experience_summary %>%
@@ -671,59 +680,110 @@ for (k in kproto_k_values) {
     )
   
   # Save plot
-  filename <- paste0("results/figures/032_kprototype_analysis/pdm_experience_k", k, ".pdf")
+  filename <- paste0("results/figures/032_A_kprototype_analysis/pdm_experience_k", k, ".pdf")
   ggsave(filename, exp_plot, width = 10, height = 8, dpi = 300)
   cat("PDM experience plot saved to:", filename, "\n")
 }
 
-# Print completion message
-cat("\nK-prototype clustering analysis complete!\n")
-cat("Results saved to: results/tables/032_kprototype_analysis/\n")
-cat("Visualizations saved to: results/figures/032_kprototype_analysis/\n") 
+# 10. Cluster Interpretation and Summary -------------------------------------
+cat("\nGenerating cluster interpretation summary...\n")
 
-# Create cluster summary for all k values
-cat("\nCreating cluster summary for all k values...\n")
-
-# Create a data frame to store summary information
-cluster_summary <- data.frame(
-  k = numeric(),
-  ClusterID = numeric(),
-  Size = numeric(),
-  SizePercentage = numeric(),
-  DominantPDM = character(),
-  DominantPDM_Percentage = numeric(),
-  stringsAsFactors = FALSE
-)
-
-# For each k, add cluster information
+# For each k, create a summary of the main characteristics of each cluster
 for (k in kproto_k_values) {
-  # Get cluster results
+  # Get the centroids and results
+  centroids <- kproto_results[[paste0("k", k)]]$centroids
   cluster_results <- kproto_results[[paste0("k", k)]]$results
   
-  # Calculate cluster sizes
-  cluster_sizes <- table(cluster_results$Cluster)
-  size_percentage <- round(prop.table(cluster_sizes) * 100, 1)
+  # Create a df to store cluster interpretations
+  cluster_summary <- data.frame(
+    Cluster = 1:k,
+    Size = as.numeric(table(cluster_results$Cluster)),
+    SizePercentage = round(as.numeric(table(cluster_results$Cluster)) / nrow(cluster_results) * 100, 1)
+  )
   
-  # For each cluster in this k
+  # Add dominant PDM for each cluster
+  pdm_by_cluster <- cluster_results %>%
+    group_by(Cluster, PDM_Selected) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    group_by(Cluster) %>%
+    arrange(desc(Count)) %>%
+    slice(1) %>%
+    select(Cluster, PDM_Selected, Count)
+  
+  cluster_summary$DominantPDM <- pdm_by_cluster$PDM_Selected
+  cluster_summary$DominantPDM_Count <- pdm_by_cluster$Count
+  cluster_summary$DominantPDM_Percentage <- round(
+    cluster_summary$DominantPDM_Count / cluster_summary$Size * 100, 1
+  )
+  
+  # For each cluster, find the top 3 highest and lowest centroid values
   for (cl in 1:k) {
-    # Calculate dominant PDM
-    pdm_counts <- table(cluster_results$PDM_Selected[cluster_results$Cluster == cl])
-    dominant_pdm <- names(pdm_counts)[which.max(pdm_counts)]
-    dominant_pdm_pct <- round(max(pdm_counts) / sum(pdm_counts) * 100, 1)
+    # Get row for this cluster
+    cluster_row <- centroids[centroids$Cluster == cl, ]
+    
+    # Extract just the variable values (excluding Cluster column)
+    var_values <- as.numeric(cluster_row[, -1])
+    var_names <- colnames(cluster_row)[-1]
+    
+    # Create a df with variables and values
+    var_df <- data.frame(
+      Variable = var_names,
+      Value = var_values
+    )
+    
+    # For numerical variables, we need to standardize them first
+    num_vars <- var_df$Variable %in% numerical_org_vars
+    if (any(num_vars)) {
+      # Calculate mean and sd across all clusters for each numerical variable
+      num_means <- colMeans(centroids[, numerical_org_vars, drop = FALSE])
+      num_sds <- apply(centroids[, numerical_org_vars, drop = FALSE], 2, sd)
+      
+      # Standardize the numerical variables
+      for (var in numerical_org_vars) {
+        if (var %in% var_df$Variable) {
+          var_idx <- which(var_df$Variable == var)
+          var_df$Value[var_idx] <- (var_df$Value[var_idx] - num_means[var]) / num_sds[var]
+        }
+      }
+    }
+    
+    # Sort by value to find highest and lowest
+    var_df <- var_df %>% arrange(desc(Value))
+    
+    # Extract top 3 highest and lowest
+    top_high <- head(var_df, 3)
+    top_low <- tail(var_df, 3)
     
     # Add to summary
-    cluster_summary <- rbind(cluster_summary, data.frame(
-      k = k,
-      ClusterID = cl,
-      Size = as.numeric(cluster_sizes[cl]),
-      SizePercentage = size_percentage[cl],
-      DominantPDM = dominant_pdm,
-      DominantPDM_Percentage = dominant_pdm_pct,
-      stringsAsFactors = FALSE
-    ))
+    cluster_summary[cl, "TopVar1"] <- top_high$Variable[1]
+    cluster_summary[cl, "TopVar1Value"] <- round(centroids[cl, top_high$Variable[1]], 2)
+    cluster_summary[cl, "TopVar2"] <- top_high$Variable[2]
+    cluster_summary[cl, "TopVar2Value"] <- round(centroids[cl, top_high$Variable[2]], 2)
+    cluster_summary[cl, "TopVar3"] <- top_high$Variable[3]
+    cluster_summary[cl, "TopVar3Value"] <- round(centroids[cl, top_high$Variable[3]], 2)
+    
+    cluster_summary[cl, "BottomVar1"] <- top_low$Variable[3]
+    cluster_summary[cl, "BottomVar1Value"] <- round(centroids[cl, top_low$Variable[3]], 2)
+    cluster_summary[cl, "BottomVar2"] <- top_low$Variable[2]
+    cluster_summary[cl, "BottomVar2Value"] <- round(centroids[cl, top_low$Variable[2]], 2)
+    cluster_summary[cl, "BottomVar3"] <- top_low$Variable[1]
+    cluster_summary[cl, "BottomVar3Value"] <- round(centroids[cl, top_low$Variable[1]], 2)
   }
+  
+  # Create a descriptive name for each cluster based on its main characteristics
+  cluster_summary$ClusterName <- paste0(
+    "Cluster ", cluster_summary$Cluster, ": ",
+    cluster_summary$DominantPDM
+  )
+  
+  # Save summary
+  save_data(cluster_summary, 
+            paste0("032_A_kprototype_analysis/cluster_summary_k", k, ".csv"))
+  
+  cat("  Generated cluster summary for k =", k, "\n")
 }
 
-# Save summary
-save_data(cluster_summary, "032_kprototype_analysis/cluster_summary.csv")
-cat("Cluster summary saved to: results/tables/032_kprototype_analysis/cluster_summary.csv\n") 
+# Print completion message
+cat("\nK-prototype clustering analysis for k=5 complete!\n")
+cat("Results saved to: results/tables/032_A_kprototype_analysis/\n")
+cat("Visualizations saved to: results/figures/032_A_kprototype_analysis/\n") 

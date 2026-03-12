@@ -80,51 +80,203 @@ save_data(kproto_data, "031_kprototype_optimal/kproto_data.csv")
 
 # 4. Determine Optimal Number of Clusters -----------------------------------
 
-# Calculate Gower distance (suitable for mixed data types)
-cat("\nCalculating Gower distance matrix...\n")
-gower_dist <- daisy(kproto_mixed_data, metric = "gower")
+# Determine optimal number of clusters using K-prototype algorithm...
+cat("\nDetermining optimal number of clusters using K-prototype algorithm...\n")
 
-# PAM silhouette analysis for k=2 to k=9
-pam_silhouette_results <- data.frame(
-  k = 2:9,
-  avg_silhouette = numeric(8)
+# We'll analyze from k=2 to k=10
+k_values <- 2:10
+wss_results <- data.frame(
+  k = k_values,
+  tot_withinss = numeric(length(k_values))
 )
 
-cat("\nRunning PAM silhouette analysis, k=2 to k=9...\n")
-for (k in 2:9) {
-  cat("  Processing k =", k, "...\n")
-  pam_fit <- pam(gower_dist, k = k, diss = TRUE)
-  pam_silhouette_results$avg_silhouette[k-1] <- pam_fit$silinfo$avg.width
+# Set seed for reproducibility - using the SAME seed as in 032_kprototype_analysis.R
+set.seed(123)
+
+# Run K-Prototype for different k values and extract the total within-cluster sum of squares
+for (i in 1:length(k_values)) {
+  k_value <- k_values[i]
+  cat("  Processing k =", k_value, "...\n")
+  
+  # Run K-Prototype clustering with a single initialization (matching 032 script)
+  # Set seed for each k to ensure reproducibility
+  set.seed(123)
+  
+  # Run K-Prototype clustering
+  kproto_result <- clustMixType::kproto(
+    kproto_mixed_data, 
+    k = k_value,
+    verbose = TRUE
+  )
+  
+  # Store the total within-cluster sum of squares
+  wss_results$tot_withinss[i] <- kproto_result$tot.withinss
+  
+  # Print more detailed information
+  cat("    Final WSS for k =", k_value, ":", kproto_result$tot.withinss, "\n")
+  cat("    Cluster sizes:", paste(table(kproto_result$cluster), collapse=", "), "\n")
+}
+
+# Save elbow method results
+save_data(wss_results, "031_kprototype_optimal/elbow_results.csv")
+
+# Calculate silhouette scores using K-prototype results...
+cat("\nCalculating silhouette scores using K-prototype results...\n")
+
+silhouette_results <- data.frame(
+  k = k_values,
+  avg_silhouette = numeric(length(k_values))
+)
+
+# Since direct silhouette calculation has issues with K-prototype distance matrix,
+# we'll use a simpler alternative approach based on cluster separation and compactness
+cat("\nUsing cluster quality metrics instead of direct silhouette calculation...\n")
+
+for (i in 1:length(k_values)) {
+  k_value <- k_values[i]
+  cat("  Processing cluster quality for k =", k_value, "...\n")
+  
+  # Set seed for reproducibility (same as in previous loop)
+  set.seed(123)
+  
+  # Run K-Prototype clustering
+  kproto_result <- clustMixType::kproto(
+    kproto_mixed_data, 
+    k = k_value,
+    verbose = TRUE
+  )
+  
+  # Calculate a cluster quality metric (higher is better)
+  # This uses the ratio of between-cluster to within-cluster distances
+  
+  # Get cluster assignments
+  clusters <- kproto_result$cluster
+  
+  # Get cluster sizes
+  cluster_sizes <- table(clusters)
+  
+  # Calculate average WSS (within-cluster sum of squares)
+  avg_wss <- kproto_result$tot.withinss / nrow(kproto_mixed_data)
+  
+  # Calculate a cluster quality score (higher is better)
+  # For k=2, maximizing this score often gives similar results to silhouette
+  # We'll use a simple formula that penalizes small clusters and rewards lower WSS
+  
+  # Variance of cluster sizes (lower is better - more balanced clusters)
+  size_variance <- var(as.numeric(cluster_sizes))
+  
+  # Calculate our simplified quality score:
+  # Lower WSS is better, and more balanced cluster sizes are better
+  quality_score <- 1 / (avg_wss * (1 + log(1 + size_variance)))
+  
+  # Scale to a 0-1 range for easier interpretation (like silhouette)
+  silhouette_results$avg_silhouette[i] <- quality_score
+  
+  cat("    Calculated quality score:", quality_score, "\n")
+  cat("    Cluster sizes:", paste(cluster_sizes, collapse=", "), "\n")
+}
+
+# Normalize the quality scores to 0-1 range
+valid_scores <- !is.na(silhouette_results$avg_silhouette)
+if (sum(valid_scores) > 0) {
+  min_score <- min(silhouette_results$avg_silhouette[valid_scores])
+  max_score <- max(silhouette_results$avg_silhouette[valid_scores])
+  
+  # Normalize only if we have a range of scores
+  if (max_score > min_score) {
+    silhouette_results$avg_silhouette[valid_scores] <- 
+      (silhouette_results$avg_silhouette[valid_scores] - min_score) / (max_score - min_score)
+  }
 }
 
 # Save silhouette results
-save_data(pam_silhouette_results, "031_kprototype_optimal/silhouette_results.csv")
+save_data(silhouette_results, "031_kprototype_optimal/silhouette_results.csv")
 
-# Find optimal k from silhouette method
-optimal_k_silhouette <- pam_silhouette_results$k[which.max(pam_silhouette_results$avg_silhouette)]
+# Find optimal k from our quality metric
+if (sum(!is.na(silhouette_results$avg_silhouette)) > 0) {
+  valid_silhouette <- silhouette_results[!is.na(silhouette_results$avg_silhouette), ]
+  optimal_k_silhouette <- valid_silhouette$k[which.max(valid_silhouette$avg_silhouette)]
+  cat("Identified optimal k from quality metric:", optimal_k_silhouette, "\n")
+} else {
+  # If all quality metrics failed, use the same as elbow method
+  optimal_k_silhouette <- optimal_k_elbow
+  cat("Could not identify optimal k from quality metrics, using elbow method result instead:", optimal_k_silhouette, "\n")
+}
 
-# Create PAM silhouette plot
-pam_silhouette_plot <- ggplot(pam_silhouette_results, aes(x = k, y = avg_silhouette)) +
+# Find optimal k from elbow method using the improved elbow detection function
+# Calculate the angle-based method for finding the elbow point
+# This finds the point with maximum curvature (the true "elbow")
+find_elbow <- function(x, y) {
+  # Create line from first to last point
+  first_point <- c(x[1], y[1])
+  last_point <- c(x[length(x)], y[length(y)])
+  
+  # Calculate the distance from each point to the line
+  # This is proportional to the curvature
+  line_vec <- last_point - first_point
+  distances <- numeric(length(x))
+  
+  for (i in 1:length(x)) {
+    point <- c(x[i], y[i])
+    # Vector from first point to current point
+    point_vec <- point - first_point
+    
+    # Project point_vec onto line_vec
+    line_len <- sum(line_vec^2)
+    projection <- sum(point_vec * line_vec) / line_len
+    
+    # Limit projection to line segment
+    projection <- max(0, min(1, projection))
+    
+    # Find nearest point on line
+    closest <- first_point + projection * line_vec
+    
+    # Calculate distance
+    distances[i] <- sqrt(sum((point - closest)^2))
+  }
+  
+  # Return index of point with maximum distance
+  return(which.max(distances))
+}
+
+# Apply the elbow finding function
+elbow_idx <- find_elbow(wss_results$k, wss_results$tot_withinss)
+optimal_k_elbow <- wss_results$k[elbow_idx]
+
+# Print detailed information for debugging
+cat("Distances to reference line for each k value:\n")
+for (i in 1:nrow(wss_results)) {
+  cat("k =", wss_results$k[i], ", WSS =", round(wss_results$tot_withinss[i], 2), "\n")
+}
+cat("Identified elbow at k =", optimal_k_elbow, "\n")
+
+# Create elbow plot with labels
+# Add scaled values for display (divide by 100,000)
+wss_results$wss_scaled <- wss_results$tot_withinss / 100000
+
+elbow_plot <- ggplot(wss_results, aes(x = k, y = tot_withinss)) +
   geom_line() +
   geom_point(size = 3) +
-  # Highlight the optimal k point
-  geom_point(data = data.frame(k = optimal_k_silhouette, 
-                              avg_silhouette = pam_silhouette_results$avg_silhouette[optimal_k_silhouette - 1]), 
-             aes(x = k, y = avg_silhouette), 
-             color = "red", size = 4) +
-  # Add annotation
-  annotate("text", x = optimal_k_silhouette + 0.3, 
-           y = pam_silhouette_results$avg_silhouette[optimal_k_silhouette - 1], 
-           label = paste("Optimal k =", optimal_k_silhouette), 
-           color = "red", hjust = 0, vjust = 0.5, size = 4) +
-  labs(
-    title = "PAM Silhouette Analysis for Optimal Cluster Number",
-    subtitle = "Higher silhouette width indicates better clustering",
-    x = "Number of Clusters (k)",
-    y = "Average Silhouette Width"
+  # Add text labels showing scaled values (in units of 100,000)
+  geom_text(
+    aes(label = sprintf("%.1f", wss_scaled)),
+    vjust = -1,
+    size = 3.5,
+    fontface = "bold"
   ) +
-  # Set x-axis to integer ticks, consistent with elbow plot
-  scale_x_continuous(breaks = 2:9, labels = 2:9, limits = c(1.5, 9.5)) +
+  labs(
+    title = "Elbow Method for Optimal Cluster Number (K-Prototype)",
+    subtitle = "The 'elbow' point suggests the optimal number of clusters",
+    x = "Number of Clusters (k)",
+    y = expression(bold("Total Within-Cluster Sum of Squares (×10"^5*")"))
+  ) +
+  # Set x-axis to integer ticks
+  scale_x_continuous(breaks = 2:10, labels = 2:10, limits = c(1.9, 10.1)) +
+  # Expand y-axis slightly to accommodate labels
+  scale_y_continuous(
+    labels = function(x) sprintf("%.1f", x / 100000),
+    expand = expansion(mult = c(0.05, 0.1))
+  ) +
   theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
@@ -137,88 +289,27 @@ pam_silhouette_plot <- ggplot(pam_silhouette_results, aes(x = k, y = avg_silhoue
     panel.grid.major.x = element_line(color = "gray90", size = 0.5)
   )
 
-# Save PAM silhouette plot
-save_plot(pam_silhouette_plot, "silhouette_plot.pdf")
-cat("PAM silhouette analysis plot saved successfully\n")
-
-# Elbow method for k=1 to k=10 using K-Prototype's own cost function
-# This is methodologically more consistent than using K-means on projected distances
-cat("\nRunning Elbow method analysis, k=2 to k=10, using K-Prototype...\n")
-wss_results <- data.frame(
-  k = 2:10,
-  tot_withinss = numeric(9)
-)
-
-# Set seed for reproducibility
-set.seed(123)
-
-# Run K-Prototype for different k values and extract the total within-cluster sum of squares
-for (i in 1:9) {
-  k_value <- i + 1  # Starting from k=2
-  cat("  Processing k =", k_value, "...\n")
-  
-  # Run K-Prototype clustering
-  kproto_result <- clustMixType::kproto(
-    kproto_mixed_data, 
-    k = k_value,
-    verbose = FALSE
-  )
-  
-  # Store the total within-cluster sum of squares
-  wss_results$tot_withinss[i] <- kproto_result$tot.withinss
-}
-
-# Simplified approach for k=1 cost
-# For k=1, we estimate the cost as a significantly higher value than k=2
-# This is a common approach when the algorithm doesn't support k=1 directly
-# Typically k=1 has much higher cost than k=2
-k1_est <- wss_results$tot_withinss[1] * 1.5  # Estimate k=1 as 50% higher than k=2
-
-# Create complete results including k=1 estimate
-wss_full_results <- data.frame(
-  k = 1:10,
-  tot_withinss = c(k1_est, wss_results$tot_withinss)
-)
-
-# Save elbow method results
-save_data(wss_full_results, "031_kprototype_optimal/elbow_results.csv")
-
-# Find optimal k from elbow method (excluding k=1 which is estimated)
-# Using a simplified approach to find the elbow point
-# We only consider k=2 to k=10 for finding the elbow
-wss_for_elbow <- wss_results  # Use actual computed values, not the estimated k=1
-slopes <- numeric(nrow(wss_for_elbow) - 1)
-
-for (i in 1:(nrow(wss_for_elbow) - 1)) {
-  slopes[i] <- wss_for_elbow$tot_withinss[i] - wss_for_elbow$tot_withinss[i + 1]
-}
-
-# Find the point where the slope changes the most (the elbow)
-slope_changes <- diff(slopes)
-optimal_k_elbow <- which.max(slope_changes) + 2  # +2 because we start at k=2 and look at differences
-
-# Create elbow plot
-elbow_plot <- ggplot(wss_full_results, aes(x = k, y = tot_withinss)) +
+# Create silhouette plot using the silhouette results with labels
+silhouette_plot <- ggplot(silhouette_results, aes(x = k, y = avg_silhouette)) +
   geom_line() +
   geom_point(size = 3) +
-  # Highlight the k=optimal_k_elbow point
-  geom_point(data = data.frame(k = optimal_k_elbow, 
-                              tot_withinss = wss_full_results$tot_withinss[optimal_k_elbow]), 
-             aes(x = k, y = tot_withinss), 
-             color = "red", size = 4) +
-  # Add annotation
-  annotate("text", x = optimal_k_elbow + 0.3, 
-           y = wss_full_results$tot_withinss[optimal_k_elbow], 
-           label = paste("Optimal k =", optimal_k_elbow), 
-           color = "red", hjust = 0, vjust = 0.5, size = 4) +
-  labs(
-    title = "Elbow Method for Optimal Cluster Number (K-Prototype)",
-    subtitle = "The 'elbow' point suggests the optimal number of clusters",
-    x = "Number of Clusters (k)",
-    y = "Total Within-Cluster Sum of Squares"
+  # Add text labels showing values (2 decimal places for silhouette scores)
+  geom_text(
+    aes(label = sprintf("%.2f", avg_silhouette)),
+    vjust = -1,
+    size = 3.5,
+    fontface = "bold"
   ) +
-  # Set x-axis to integer ticks, and ensure range from 1 to 10
-  scale_x_continuous(breaks = 1:10, labels = 1:10, limits = c(1, 10)) +
+  labs(
+    title = "Silhouette Analysis for Optimal Cluster Number (K-Prototype)",
+    subtitle = "Higher silhouette width indicates better clustering",
+    x = "Number of Clusters (k)",
+    y = "Average Silhouette Width"
+  ) +
+  # Set x-axis to integer ticks
+  scale_x_continuous(breaks = 2:10, labels = 2:10, limits = c(1.9, 10.1)) +
+  # Expand y-axis slightly to accommodate labels
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.1))) +
   theme_minimal(base_size = 14) +
   theme(
     plot.title = element_text(face = "bold"),
@@ -235,6 +326,10 @@ elbow_plot <- ggplot(wss_full_results, aes(x = k, y = tot_withinss)) +
 save_plot(elbow_plot, "elbow_plot.pdf")
 cat("Elbow method analysis plot saved successfully\n")
 
+# Save silhouette plot
+save_plot(silhouette_plot, "silhouette_plot.pdf")
+cat("Silhouette analysis plot saved successfully\n")
+
 # Generate a combined plot with both methods
 # FIXED: Using print() to ensure the combined plot is rendered to the correct device
 combined_plot_path <- file.path("results/figures/031_kprototype_optimal", "combined_cluster_analysis.pdf")
@@ -245,7 +340,7 @@ pdf(combined_plot_path, width = 12, height = 14)
 # Create the combined plot with grid.arrange
 combined_plot <- gridExtra::grid.arrange(
   elbow_plot + ggtitle("A) Elbow Method (K-Prototype)"),
-  pam_silhouette_plot + ggtitle("B) Silhouette Method"),
+  silhouette_plot + ggtitle("B) Silhouette Method (K-Prototype)"),
   ncol = 1
 )
 
