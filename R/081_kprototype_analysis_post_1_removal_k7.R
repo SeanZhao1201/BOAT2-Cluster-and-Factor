@@ -84,8 +84,8 @@ if (nrow(data_cleaned_081) < K_FIXED_FOR_SCRIPT) {
 # 3. Prepare data_cleaned for K-prototypes clustering (k=7) --
 cat("\n--- Preparing data for final k=", K_FIXED_FOR_SCRIPT, " clustering (post 1 removal) ---\n")
 numerical_vars_final_081 <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
-exclude_vars_final_081 <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
-                              "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", 
+exclude_vars_final_081 <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
+                              "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD",
                               "Original_Row_ID")
 exclude_vars_final_081 <- exclude_vars_final_081[exclude_vars_final_081 %in% colnames(data_cleaned_081)]
 

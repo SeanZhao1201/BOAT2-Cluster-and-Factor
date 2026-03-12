@@ -432,15 +432,18 @@ cat("\nExtracting columns needed for analysis...\n")
 # Use our defined variable groups to select columns
 cleaned_data_selected <- pre_cleaned_data_imputed %>%
   select(
+    # Owner type (public/private)
+    Owner_Type,
+
     # PDM type
     PDM_Selected,
-    
+
     # PDM experience variables
     all_of(PDM_Exp_Names),
-    
+
     # Organization structure variables
     all_of(ORG_Num_Names),
-    
+
     # Decision and culture Likert scale variables
     all_of(DEC_Likert_Names)
   )
@@ -503,7 +506,7 @@ cat("\nCreating dataset with Project_Success variable...\n")
 if (nrow(cleaned_data) == nrow(pre_cleaned_data_imputed)) {
   # Select the desired columns from cleaned_data first
   base_for_success <- cleaned_data %>%
-    select(PDM_Selected, all_of(PDM_Exp_Names), all_of(ORG_Num_Names), all_of(DEC_Likert_Names))
+    select(Owner_Type, PDM_Selected, all_of(PDM_Exp_Names), all_of(ORG_Num_Names), all_of(DEC_Likert_Names))
   
   # Add Project_Success from pre_cleaned_data_imputed and ensure it's the first column
   BOAT2_Data_Success <- base_for_success %>%

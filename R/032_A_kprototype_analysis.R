@@ -37,11 +37,12 @@ numerical_org_vars <- c(
 )
 
 # All variables except PDM_Selected and PDM experience variables
-exclude_vars <- c("PDM_Selected", 
-                  "PDM_Experience_DBB", 
-                  "PDM_Experience_DB", 
-                  "PDM_Experience_PDB", 
-                  "PDM_Experience_CMAR", 
+exclude_vars <- c("Owner_Type",
+                  "PDM_Selected",
+                  "PDM_Experience_DBB",
+                  "PDM_Experience_DB",
+                  "PDM_Experience_PDB",
+                  "PDM_Experience_CMAR",
                   "PDM_Experience_IPD")
 all_vars <- setdiff(colnames(data), exclude_vars)
 

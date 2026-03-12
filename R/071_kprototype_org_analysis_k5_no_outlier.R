@@ -60,11 +60,12 @@ if (length(missing_org_vars) > 0) {
   stop(paste("Error: The following ORG variables are not found in the dataset after outlier removal:", paste(missing_org_vars, collapse=", ")))
 }
 
-exclude_vars <- c("PDM_Selected", 
-                  "PDM_Experience_DBB", 
-                  "PDM_Experience_DB", 
-                  "PDM_Experience_PDB", 
-                  "PDM_Experience_CMAR", 
+exclude_vars <- c("Owner_Type",
+                  "PDM_Selected",
+                  "PDM_Experience_DBB",
+                  "PDM_Experience_DB",
+                  "PDM_Experience_PDB",
+                  "PDM_Experience_CMAR",
                   "PDM_Experience_IPD")
 exclude_vars <- exclude_vars[exclude_vars %in% colnames(data)]
 

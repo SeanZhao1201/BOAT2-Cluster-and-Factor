@@ -62,7 +62,7 @@ group2_vars <- c(
 numerical_org_vars <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
 
 # Exclude vars (for determining all categorical vars if needed, not directly used in radar groups)
-exclude_vars <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
+exclude_vars <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
                   "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", "X")
 exclude_vars <- exclude_vars[exclude_vars %in% colnames(data_original)]
 

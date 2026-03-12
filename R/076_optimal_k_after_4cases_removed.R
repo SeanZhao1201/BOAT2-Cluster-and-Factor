@@ -68,7 +68,7 @@ if (nrow(case_outlier_df) > 0) { # Remove outlier first if found
 
 # Define variables for this temporary clustering (consistent with previous scripts)
 numerical_org_vars_temp <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
-exclude_vars_temp <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
+exclude_vars_temp <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
                          "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", "X")
 exclude_vars_temp <- exclude_vars_temp[exclude_vars_temp %in% colnames(data_for_temp_clustering)]
 all_categorical_vars_temp <- setdiff(colnames(data_for_temp_clustering), c(numerical_org_vars_temp, exclude_vars_temp, "Original_Row_ID"))
@@ -114,7 +114,7 @@ if (nrow(data_cleaned) < 10) { # Arbitrary small number check
 # 4. Prepare data_cleaned for K-prototypes clustering (Optimal K analysis) --
 # Define numerical and categorical variables for the main optimal K analysis
 numerical_vars_final <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
-exclude_vars_final <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
+exclude_vars_final <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
                           "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", "X", "Original_Row_ID")
 exclude_vars_final <- exclude_vars_final[exclude_vars_final %in% colnames(data_cleaned)]
 

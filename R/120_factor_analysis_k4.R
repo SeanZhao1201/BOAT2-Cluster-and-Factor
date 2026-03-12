@@ -65,12 +65,13 @@ cat("\n--- Defining variables for factor analysis ---\n")
 
 # Variables to EXCLUDE from factor analysis
 exclude_vars <- c(
+  "Owner_Type",           # Owner type (public/private)
   "Project_Success",      # Outcome variable
   "PDM_Selected",         # Project delivery method
   "PDM_Experience_DBB",   # Experience variables
-  "PDM_Experience_DB", 
-  "PDM_Experience_PDB", 
-  "PDM_Experience_CMAR", 
+  "PDM_Experience_DB",
+  "PDM_Experience_PDB",
+  "PDM_Experience_CMAR",
   "PDM_Experience_IPD",
   "Original_Row_ID",      # ID variable
   "Cluster_k4"           # Cluster assignment

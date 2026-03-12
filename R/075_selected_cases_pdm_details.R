@@ -59,7 +59,7 @@ if(nrow(case_outlier) > 0) {
 # Cases 2, 3, 4: From Cluster 3 (post-outlier removal, k=5, seed=123)
 # Define variables for clustering as in previous scripts to ensure consistency
 numerical_org_vars <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
-exclude_vars_clustering <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
+exclude_vars_clustering <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
                              "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", "X")
 exclude_vars_clustering <- exclude_vars_clustering[exclude_vars_clustering %in% colnames(data_original)]
 

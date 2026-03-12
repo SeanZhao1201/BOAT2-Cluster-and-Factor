@@ -50,11 +50,12 @@ numerical_org_vars <- c(
   "ORG_Layers"
 )
 
-exclude_vars <- c("PDM_Selected", 
-                  "PDM_Experience_DBB", 
-                  "PDM_Experience_DB", 
-                  "PDM_Experience_PDB", 
-                  "PDM_Experience_CMAR", 
+exclude_vars <- c("Owner_Type",
+                  "PDM_Selected",
+                  "PDM_Experience_DBB",
+                  "PDM_Experience_DB",
+                  "PDM_Experience_PDB",
+                  "PDM_Experience_CMAR",
                   "PDM_Experience_IPD",
                   "X") # Assuming 'X' is an original index column from read.csv, if it exists
 

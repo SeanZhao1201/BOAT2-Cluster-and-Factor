@@ -81,9 +81,9 @@ if (nrow(data_cleaned) < 10) {
 # 3. Prepare data_cleaned for K-prototypes clustering (Optimal K analysis) --
 cat("\n--- Preparing data for Optimal K analysis (post 1 removal) ---\n")
 numerical_vars <- c("ORG_Employees", "ORG_Locations", "ORG_Departments", "ORG_Layers")
-exclude_vars <- c("PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB", 
-                    "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD", 
-                    "Original_Row_ID") # Exclude PDM selectors and Original_Row_ID
+exclude_vars <- c("Owner_Type", "PDM_Selected", "PDM_Experience_DBB", "PDM_Experience_DB",
+                    "PDM_Experience_PDB", "PDM_Experience_CMAR", "PDM_Experience_IPD",
+                    "Original_Row_ID") # Exclude Owner_Type, PDM selectors and Original_Row_ID
 exclude_vars <- exclude_vars[exclude_vars %in% colnames(data_cleaned)]
 
 all_clustering_vars <- setdiff(colnames(data_cleaned), exclude_vars)
